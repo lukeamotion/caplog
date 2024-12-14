@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const { keyword, page = 1, limit = 10 } = req.query;
-      let query = supabase.from('log_entries').select('*', { count: 'exact' });
+      let query = supabase.from('logentries').select('*', { count: 'exact' }); // Updated table name
 
       if (keyword) {
         query = query.contains('keywords', [keyword]);
@@ -85,13 +85,15 @@ Text: "${inputText}"
       const parsed = JSON.parse(response.data.choices[0].message.content);
       console.log("Parsed JSON from OpenAI:", parsed);
 
-      const { data, error } = await supabase.from('log_entries').insert([{
-        log_entry_datetime: parsed.event_time === 'now' ? new Date().toISOString() : parsed.event_time,
-        log_type: parsed.event_type,
-        keywords: parsed.keywords,
-        follow_up: parsed.follow_up,
-        description: parsed.description,
-      }]);
+      const { data, error } = await supabase.from('logentries').insert([ // Updated table name
+        {
+          log_entry_datetime: parsed.event_time === 'now' ? new Date().toISOString() : parsed.event_time,
+          log_type: parsed.event_type,
+          keywords: parsed.keywords,
+          follow_up: parsed.follow_up,
+          description: parsed.description,
+        }
+      ]);
 
       if (error) {
         console.error("Supabase insert error:", error);
