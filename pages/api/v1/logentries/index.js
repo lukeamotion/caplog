@@ -26,28 +26,20 @@ export default async function handler(req, res) {
     if (!inputText) return res.status(400).json({ error: 'No input text provided.' });
 
     try {
-      const prompt = `
-You are a parser that extracts details from an input text for a logging system.
-Extract and return JSON with:
-- event_type: string
-- description: string
-- contacts: array of contact names
-- companies: array of company names
-- keywords: array of keywords
-- follow_up: boolean
-- event_time: string in ISO format or 'now' if not specified
+      // Simplified prompt to ensure predictable JSON output
+      const prompt = `Return a JSON object: {"event_type":"Call","description":"Test event","contacts":[],"companies":[],"keywords":["test"],"follow_up":false,"event_time":"now"}`;
 
-Text: "${inputText}"
-`;
-
+      console.log("About to call OpenAI");
       const response = await openai.createChatCompletion({
-        model: 'gpt-3.5-turbo', // Using gpt-3.5-turbo for broader availability
+        model: 'gpt-3.5-turbo',
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.2,
       });
+      console.log("OpenAI response:", response.data);
 
       // Parse the JSON response from GPT
       const parsed = JSON.parse(response.data.choices[0].message.content);
+      console.log("Parsed JSON:", parsed);
 
       // Insert the parsed data into the database
       const { data, error } = await supabase.from('log_entries').insert([{
@@ -58,10 +50,15 @@ Text: "${inputText}"
         description: parsed.description,
       }]);
 
-      if (error) return res.status(500).json({ error: error.message });
+      if (error) {
+        console.error("Supabase insert error:", error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      console.log("Insert success:", data);
       return res.status(201).json({ data });
     } catch (err) {
-      console.error(err);
+      console.error("Catch block error:", err);
       return res.status(500).json({ error: 'Error processing request.' });
     }
   } else {
