@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     }
 
     if (!openai) {
-      console.error("OpenAI instance not initialized. Cannot call createChatCompletion.");
+      console.error("OpenAI instance is not initialized.");
       return res.status(500).json({ error: "OpenAI API is not initialized." });
     }
 
