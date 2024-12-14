@@ -80,4 +80,31 @@ Text: "${inputText}"
         return res.status(500).json({ error: 'Unexpected response from OpenAI API.' });
       }
 
-     
+      console.log("OpenAI response received:", response.data);
+
+      const parsed = JSON.parse(response.data.choices[0].message.content);
+      console.log("Parsed JSON from OpenAI:", parsed);
+
+      const { data, error } = await supabase.from('log_entries').insert([{
+        log_entry_datetime: parsed.event_time === 'now' ? new Date().toISOString() : parsed.event_time,
+        log_type: parsed.event_type,
+        keywords: parsed.keywords,
+        follow_up: parsed.follow_up,
+        description: parsed.description,
+      }]);
+
+      if (error) {
+        console.error("Supabase insert error:", error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      console.log("Insert success:", data);
+      return res.status(201).json({ data });
+    } catch (err) {
+      console.error("Catch block error in POST handler:", err);
+      return res.status(500).json({ error: 'Error processing request.' });
+    }
+  } else {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+}
