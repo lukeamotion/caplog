@@ -1,15 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { Configuration, OpenAIApi } from 'openai';
 
+// Initialize Supabase
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-// Ensure Configuration and OpenAIApi are properly initialized
+// Initialize OpenAI
 let openai;
 try {
   const configuration = new Configuration({
     apiKey: process.env.OPENAI_API_KEY,
   });
   openai = new OpenAIApi(configuration);
+  console.log("OpenAI API initialized successfully.");
 } catch (error) {
   console.error("Error initializing OpenAI API:", error);
 }
@@ -46,6 +48,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No input text provided.' });
     }
 
+    if (!openai) {
+      console.error("OpenAI instance not initialized. Cannot call createChatCompletion.");
+      return res.status(500).json({ error: "OpenAI API is not initialized." });
+    }
+
     try {
       const prompt = `
 You are a parser that extracts details from an input text for a logging system.
@@ -61,9 +68,9 @@ Extract and return JSON with:
 Text: "${inputText}"
 `;
 
-      console.log("Calling OpenAI API...");
+      console.log("Calling OpenAI API with prompt...");
       const response = await openai.createChatCompletion({
-        model: 'gpt-3.5-turbo', // Use 'gpt-4' if you have access
+        model: 'gpt-3.5-turbo',
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.2,
       });
@@ -73,31 +80,4 @@ Text: "${inputText}"
         return res.status(500).json({ error: 'Unexpected response from OpenAI API.' });
       }
 
-      console.log("OpenAI response:", response.data);
-
-      const parsed = JSON.parse(response.data.choices[0].message.content);
-      console.log("Parsed JSON:", parsed);
-
-      const { data, error } = await supabase.from('log_entries').insert([{
-        log_entry_datetime: parsed.event_time === 'now' ? new Date().toISOString() : parsed.event_time,
-        log_type: parsed.event_type,
-        keywords: parsed.keywords,
-        follow_up: parsed.follow_up,
-        description: parsed.description,
-      }]);
-
-      if (error) {
-        console.error("Supabase insert error:", error);
-        return res.status(500).json({ error: error.message });
-      }
-
-      console.log("Insert success:", data);
-      return res.status(201).json({ data });
-    } catch (err) {
-      console.error("Catch block error in POST handler:", err);
-      return res.status(500).json({ error: 'Error processing request.' });
-    }
-  } else {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-}
+     
