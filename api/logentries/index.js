@@ -1,7 +1,25 @@
 import { supabase } from '../../utils/supabase';
 import { validateLogEntry } from '../../utils/validation';
 
+function convertToMeetingNotesFormat(entry) {
+  return `
+  Meeting Notes:
+  - Date: ${entry.logeventtime || 'N/A'}
+  - Keywords: ${entry.keywords?.join(', ') || 'None'}
+  - Followup: ${entry.followup ? 'Yes' : 'No'}
+  `;
+}
+
 export default async function handler(req, res) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+    // Debugging logic for missing environment variables
+    return res.status(500).json({
+      message: 'Missing environment variables',
+      supabaseUrl: process.env.SUPABASE_URL || 'URL not found',
+      supabaseKey: process.env.SUPABASE_KEY ? 'Key loaded' : 'Key not found',
+    });
+  }
+
   if (req.method === 'GET') {
     const { format, followup, limit = 1000, offset = 0 } = req.query;
 
@@ -18,7 +36,7 @@ export default async function handler(req, res) {
       return res.status(200).send(formatted.join('\n\n'));
     }
 
-    res.status(200).json(data);
+    return res.status(200).json(data);
   } else if (req.method === 'POST') {
     try {
       const body = req.body;
@@ -27,19 +45,12 @@ export default async function handler(req, res) {
       const { data, error } = await supabase.from('logentries').insert([body]);
       if (error) throw error;
 
-      res.status(201).json(data);
+      return res.status(201).json(data);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      return res.status(400).json({ message: error.message });
     }
   } else {
     res.setHeader('Allow', ['GET', 'POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
-}
-
-export default function handler(req, res) {
-  res.status(200).json({
-    supabaseUrl: process.env.SUPABASE_URL || "URL not found",
-    supabaseKey: process.env.SUPABASE_KEY ? "Key loaded" : "Key not found",
-  });
 }
