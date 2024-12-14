@@ -36,3 +36,10 @@ export default async function handler(req, res) {
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
+
+export default function handler(req, res) {
+  res.status(200).json({
+    supabaseUrl: process.env.SUPABASE_URL || "URL not found",
+    supabaseKey: process.env.SUPABASE_KEY ? "Key loaded" : "Key not found",
+  });
+}
