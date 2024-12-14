@@ -18,30 +18,46 @@ export default async function handler(req, res) {
     query = query.range(offset, offset + limit - 1);
 
     const { data, error, count } = await query;
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      console.error("GET error:", error);
+      return res.status(500).json({ error: error.message });
+    }
 
     return res.status(200).json({ data, page, limit, total: count });
   } else if (req.method === 'POST') {
     const { inputText } = req.body;
-    if (!inputText) return res.status(400).json({ error: 'No input text provided.' });
+    if (!inputText) {
+      console.error("No inputText provided in POST request");
+      return res.status(400).json({ error: 'No input text provided.' });
+    }
 
     try {
-      // Simplified prompt to ensure predictable JSON output
-      const prompt = `Return a JSON object: {"event_type":"Call","description":"Test event","contacts":[],"companies":[],"keywords":["test"],"follow_up":false,"event_time":"now"}`;
+      const prompt = `
+You are a parser that extracts details from an input text for a logging system.
+Extract and return JSON with:
+- event_type: string
+- description: string
+- contacts: array of contact names
+- companies: array of company names
+- keywords: array of keywords
+- follow_up: boolean
+- event_time: string in ISO format or 'now' if not specified
 
-      console.log("About to call OpenAI");
+Text: "${inputText}"
+`;
+
+      console.log("Calling OpenAI API...");
       const response = await openai.createChatCompletion({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-3.5-turbo', // Use 'gpt-4' if you have access
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.2,
       });
+
       console.log("OpenAI response:", response.data);
 
-      // Parse the JSON response from GPT
       const parsed = JSON.parse(response.data.choices[0].message.content);
       console.log("Parsed JSON:", parsed);
 
-      // Insert the parsed data into the database
       const { data, error } = await supabase.from('log_entries').insert([{
         log_entry_datetime: parsed.event_time === 'now' ? new Date().toISOString() : parsed.event_time,
         log_type: parsed.event_type,
