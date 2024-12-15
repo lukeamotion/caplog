@@ -3,6 +3,7 @@ import { supabase } from '../../utils/supabase.js';
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
+      // Fetch all companies
       const { data, error } = await supabase.from('companies').select('*');
       if (error) throw error;
 
@@ -16,25 +17,14 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Name is required.' });
       }
 
-      // Validate phone number
-      if (phone) {
-        if (!/^\([0-9]{3}\) [0-9]{3}-[0-9]{4}$/.test(phone)) {
-          if (phone.replace(/[^0-9]/g, '').length > 10) {
-            return res.status(400).json({
-              error: 'Phone number has too many digits. Please provide a valid 10-digit phone number or omit the phone field.',
-            });
-          } else {
-            return res.status(400).json({
-              error: 'Invalid phone format. Expected format: (555) 123-4567.',
-            });
-          }
-        }
-      }
+      // Format and validate phone number
+      const formattedPhone = formatPhone(phone);
 
       // Insert new company
       const { data, error } = await supabase
         .from('companies')
-        .insert([{ name, city, state, zip, phone, country }]);
+        .insert([{ name, city, state, zip, phone: formattedPhone, country }]);
+
       if (error) throw error;
 
       return res.status(201).json(data);
@@ -47,25 +37,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Name is required for updates.' });
       }
 
-      // Validate phone number
-      if (phone) {
-        if (!/^\([0-9]{3}\) [0-9]{3}-[0-9]{4}$/.test(phone)) {
-          if (phone.replace(/[^0-9]/g, '').length > 10) {
-            return res.status(400).json({
-              error: 'Phone number has too many digits. Please provide a valid 10-digit phone number or omit the phone field.',
-            });
-          } else {
-            return res.status(400).json({
-              error: 'Invalid phone format. Expected format: (555) 123-4567.',
-            });
-          }
-        }
-      }
+      // Format and validate phone number
+      const formattedPhone = formatPhone(phone);
 
       // Update company by name
       const { data, error } = await supabase
         .from('companies')
-        .update({ city, state, zip, phone, country })
+        .update({ city, state, zip, phone: formattedPhone, country })
         .eq('name', name);
 
       if (error) throw error;
@@ -95,4 +73,14 @@ export default async function handler(req, res) {
     console.error('Error in companies handler:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
+}
+
+// Utility function to format and validate phone numbers
+function formatPhone(phone) {
+  if (!phone) return null; // Allow null or empty phone numbers
+  const numericPhone = phone.replace(/[^0-9]/g, ''); // Strip non-numeric characters
+  if (numericPhone.length !== 10) {
+    throw new Error('Phone number must be exactly 10 digits.');
+  }
+  return `${numericPhone.slice(0, 3)}.${numericPhone.slice(3, 6)}.${numericPhone.slice(6)}`;
 }
