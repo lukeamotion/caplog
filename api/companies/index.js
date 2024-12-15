@@ -10,6 +10,15 @@ export default async function handler(req, res) {
   ];
 
   try {
+    // Extract the API key from the Authorization header
+    const apiKey = req.headers['authorization'];
+    const validKey = process.env.OPENAI_KEY; // Key stored in Vercel environment variables
+
+    // Check if the API key is valid
+    if (apiKey !== `Bearer ${validKey}`) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
+    }
+
     if (req.method === 'GET') {
       const { data, error } = await supabase.from('companies').select('*');
       if (error) throw error;
