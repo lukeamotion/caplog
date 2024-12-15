@@ -1,68 +1,65 @@
-import { supabase } from '../../utils/supabase.js'; // Ensure the .js extension
+import { supabase } from '../../utils/supabase.js';
 
 export default async function handler(req, res) {
   try {
-    // Extract the API key from the Authorization header
+    // API Key Validation
     const apiKey = req.headers['authorization'];
-    const validKey = process.env.OPENAI_KEY; // Key stored in Vercel environment variables
+    const validKey = process.env.OPENAI_KEY;
 
-    // Check if the API key is valid
     if (apiKey !== `Bearer ${validKey}`) {
       return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
     }
 
     if (req.method === 'GET') {
-      console.log('GET Request received for contacts.');
-
-      // Fetch all data from the 'contacts' table
       const { data, error } = await supabase.from('contacts').select('*');
-      console.log('Supabase GET Response:', { data, error });
-
       if (error) throw error;
-
-      // Return the data as JSON
       return res.status(200).json(data);
     } else if (req.method === 'POST') {
       const { firstname, lastname, email, companyid } = req.body;
 
-      // Validate required fields
       if (!firstname || !lastname || !email || !companyid) {
         return res.status(400).json({
-          error: 'First name, last name, email, and companyid are required.',
+          error: 'firstname, lastname, email, and companyid are required.',
         });
       }
 
-      // Check for duplicate email
-      const { data: existingContact, error: fetchError } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // Handle unexpected Supabase errors
-        console.error('Supabase fetch error:', fetchError);
-        throw fetchError;
-      }
-
-      if (existingContact) {
-        return res
-          .status(409)
-          .json({ error: `A contact with the email "${email}" already exists.` });
-      }
-
-      // Insert new contact into the 'contacts' table
       const { data, error } = await supabase
         .from('contacts')
         .insert([{ firstname, lastname, email, companyid }]);
-
       if (error) throw error;
 
-      // Return the created contact as JSON
       return res.status(201).json(data);
+    } else if (req.method === 'PATCH') {
+      const { id } = req.query;
+      const { firstname, lastname, email } = req.body;
+
+      if (!id) {
+        return res.status(400).json({ error: 'Contact ID is required.' });
+      }
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .update({ firstname, lastname, email })
+        .eq('id', id);
+      if (error) throw error;
+
+      return res.status(200).json(data);
+    } else if (req.method === 'DELETE') {
+      const { id } = req.query;
+
+      if (!id) {
+        return res.status(400).json({ error: 'Contact ID is required.' });
+      }
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+
+      return res.status(200).json({ message: `Contact with ID ${id} deleted.` });
     } else {
-      // Handle unsupported HTTP methods
-      res.setHeader('Allow', ['GET', 'POST']);
+      res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
