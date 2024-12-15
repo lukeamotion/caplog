@@ -2,6 +2,9 @@ import { supabase } from '../../utils/supabase.js'; // Ensure the .js extension
 
 export default async function handler(req, res) {
   try {
+    // Log request headers for debugging
+    console.log('Request Headers:', req.headers);
+
     // Extract the API key from the Authorization header
     const apiKey = req.headers['authorization'];
     const validKey = process.env.OPENAI_KEY; // Key stored in Vercel environment variables
