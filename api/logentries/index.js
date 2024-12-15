@@ -19,22 +19,22 @@ export default async function handler(req, res) {
 
     // Handle POST requests
     } else if (req.method === 'POST') {
-      const { logType, keywords, followup } = req.body;
+      const { logtype, keywords, followup } = req.body;
 
-      if (!logType || !keywords) {
-        return res.status(400).json({ error: 'logType and keywords are required.' });
+      if (!logtype || !keywords) {
+        return res.status(400).json({ error: 'logtype and keywords are required.' });
       }
 
       const { data, error } = await supabase
         .from('logentries')
-        .insert([{ logType, keywords, followup }]);
+        .insert([{ logtype, keywords, followup }]);
       if (error) throw error;
       return res.status(201).json(data);
 
     // Handle PATCH requests
     } else if (req.method === 'PATCH') {
       const { id } = req.query; // Get the log entry ID from query params
-      const { logType, keywords, followup } = req.body;
+      const { logtype, keywords, followup } = req.body;
 
       if (!id) {
         return res.status(400).json({ error: 'Log entry ID is required.' });
@@ -42,7 +42,7 @@ export default async function handler(req, res) {
 
       const { data, error } = await supabase
         .from('logentries')
-        .update({ logType, keywords, followup })
+        .update({ logtype, keywords, followup })
         .eq('id', id); // Update the record where id matches
       if (error) throw error;
       return res.status(200).json(data);
