@@ -1,9 +1,16 @@
 import { supabase } from '../../utils/supabase.js';
 
 export default async function handler(req, res) {
+  const allowedStates = [
+    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+    'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+    'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+  ];
+
   try {
     if (req.method === 'GET') {
-      // Fetch all companies
       const { data, error } = await supabase.from('companies').select('*');
       if (error) throw error;
 
@@ -12,18 +19,20 @@ export default async function handler(req, res) {
     } else if (req.method === 'POST') {
       const { name, city = null, state = null, zip = null, phone = null, country = null } = req.body;
 
-      // Validate required fields
       if (!name) {
         return res.status(400).json({ error: 'Name is required.' });
       }
 
-      // Format and validate phone number
-      const formattedPhone = formatPhone(phone);
+      // Validate state if provided
+      if (state && !allowedStates.includes(state)) {
+        return res.status(400).json({
+          error: `Invalid state value: ${state}. Allowed values are: ${allowedStates.join(', ')}.`
+        });
+      }
 
-      // Insert new company
       const { data, error } = await supabase
         .from('companies')
-        .insert([{ name, city, state, zip, phone: formattedPhone, country }]);
+        .insert([{ name, city, state, zip, phone, country }]);
 
       if (error) throw error;
 
@@ -32,18 +41,20 @@ export default async function handler(req, res) {
     } else if (req.method === 'PUT') {
       const { name, city = null, state = null, zip = null, phone = null, country = null } = req.body;
 
-      // Validate required fields
       if (!name) {
         return res.status(400).json({ error: 'Name is required for updates.' });
       }
 
-      // Format and validate phone number
-      const formattedPhone = formatPhone(phone);
+      // Validate state if provided
+      if (state && !allowedStates.includes(state)) {
+        return res.status(400).json({
+          error: `Invalid state value: ${state}. Allowed values are: ${allowedStates.join(', ')}.`
+        });
+      }
 
-      // Update company by name
       const { data, error } = await supabase
         .from('companies')
-        .update({ city, state, zip, phone: formattedPhone, country })
+        .update({ city, state, zip, phone, country })
         .eq('name', name);
 
       if (error) throw error;
@@ -53,19 +64,16 @@ export default async function handler(req, res) {
     } else if (req.method === 'DELETE') {
       const { name } = req.body;
 
-      // Validate required fields
       if (!name) {
         return res.status(400).json({ error: 'Name is required to delete a company.' });
       }
 
-      // Delete company by name
       const { data, error } = await supabase.from('companies').delete().eq('name', name);
       if (error) throw error;
 
       return res.status(200).json({ message: 'Company deleted successfully.', data });
 
     } else {
-      // Handle unsupported HTTP methods
       res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
@@ -73,14 +81,4 @@ export default async function handler(req, res) {
     console.error('Error in companies handler:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
-}
-
-// Utility function to format and validate phone numbers
-function formatPhone(phone) {
-  if (!phone) return null; // Allow null or empty phone numbers
-  const numericPhone = phone.replace(/[^0-9]/g, ''); // Strip non-numeric characters
-  if (numericPhone.length !== 10) {
-    throw new Error('Phone number must be exactly 10 digits.');
-  }
-  return `${numericPhone.slice(0, 3)}.${numericPhone.slice(3, 6)}.${numericPhone.slice(6)}`;
 }
