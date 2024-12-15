@@ -10,57 +10,33 @@ export default async function handler(req, res) {
       return res.status(200).json(data);
 
     } else if (req.method === 'POST') {
-      const { name, code, city, state } = req.body;
+      const { name, city, state } = req.body;
 
       // Validate required fields
-      if (!name || !code || !city) {
-        return res.status(400).json({ error: 'Name, code, and city are required.' });
-      }
-
-      // Check for duplicate company code
-      const { data: existingCompany, error: fetchError } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('code', code)
-        .single();
-
-      if (existingCompany) {
-        return res.status(409).json({ error: `A company with the code "${code}" already exists.` });
+      if (!name || !city) {
+        return res.status(400).json({ error: 'Name and city are required.' });
       }
 
       // Insert new company into the 'companies' table
       const { data, error } = await supabase
         .from('companies')
-        .insert([{ name, code, city, state }]);
-
+        .insert([{ name, city, state }]);
       if (error) throw error;
 
       return res.status(201).json(data);
 
     } else if (req.method === 'PUT') {
-      const { id, name, code, city, state } = req.body;
+      const { id, name, city, state } = req.body;
 
       // Validate required fields
-      if (!id || !name || !code || !city) {
-        return res.status(400).json({ error: 'ID, name, code, and city are required for updates.' });
-      }
-
-      // Check for duplicate company code on update (excluding current ID)
-      const { data: existingCompany, error: fetchError } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('code', code)
-        .neq('id', id)
-        .single();
-
-      if (existingCompany) {
-        return res.status(409).json({ error: `A company with the code "${code}" already exists.` });
+      if (!id || !name || !city) {
+        return res.status(400).json({ error: 'ID, name, and city are required for updates.' });
       }
 
       // Update company record
       const { data, error } = await supabase
         .from('companies')
-        .update({ name, code, city, state })
+        .update({ name, city, state })
         .eq('id', id);
 
       if (error) throw error;
