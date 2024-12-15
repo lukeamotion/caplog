@@ -10,33 +10,38 @@ export default async function handler(req, res) {
       return res.status(200).json(data);
 
     } else if (req.method === 'POST') {
-      const { name, city, state } = req.body;
+      const { name, city, state, address = null, phone = null, email = null } = req.body;
 
       // Validate required fields
-      if (!name || !city) {
-        return res.status(400).json({ error: 'Name and city are required.' });
+      if (!name || !city || !state) {
+        return res.status(400).json({
+          error: 'Name, city, and state are required.',
+        });
       }
 
       // Insert new company into the 'companies' table
       const { data, error } = await supabase
         .from('companies')
-        .insert([{ name, city, state }]);
+        .insert([{ name, city, state, address, phone, email }]);
+
       if (error) throw error;
 
       return res.status(201).json(data);
 
     } else if (req.method === 'PUT') {
-      const { id, name, city, state } = req.body;
+      const { id, name, city, state, address = null, phone = null, email = null } = req.body;
 
       // Validate required fields
-      if (!id || !name || !city) {
-        return res.status(400).json({ error: 'ID, name, and city are required for updates.' });
+      if (!id || !name || !city || !state) {
+        return res.status(400).json({
+          error: 'ID, name, city, and state are required for updates.',
+        });
       }
 
       // Update company record
       const { data, error } = await supabase
         .from('companies')
-        .update({ name, city, state })
+        .update({ name, city, state, address, phone, email })
         .eq('id', id);
 
       if (error) throw error;
