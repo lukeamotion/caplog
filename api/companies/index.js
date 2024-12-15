@@ -3,7 +3,6 @@ import { supabase } from '../../utils/supabase.js';
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      // Fetch all companies
       const { data, error } = await supabase.from('companies').select('*');
       if (error) throw error;
 
@@ -15,6 +14,21 @@ export default async function handler(req, res) {
       // Validate required fields
       if (!name) {
         return res.status(400).json({ error: 'Name is required.' });
+      }
+
+      // Validate phone number
+      if (phone) {
+        if (!/^\([0-9]{3}\) [0-9]{3}-[0-9]{4}$/.test(phone)) {
+          if (phone.replace(/[^0-9]/g, '').length > 10) {
+            return res.status(400).json({
+              error: 'Phone number has too many digits. Please provide a valid 10-digit phone number or omit the phone field.',
+            });
+          } else {
+            return res.status(400).json({
+              error: 'Invalid phone format. Expected format: (555) 123-4567.',
+            });
+          }
+        }
       }
 
       // Insert new company
@@ -31,6 +45,21 @@ export default async function handler(req, res) {
       // Validate required fields
       if (!name) {
         return res.status(400).json({ error: 'Name is required for updates.' });
+      }
+
+      // Validate phone number
+      if (phone) {
+        if (!/^\([0-9]{3}\) [0-9]{3}-[0-9]{4}$/.test(phone)) {
+          if (phone.replace(/[^0-9]/g, '').length > 10) {
+            return res.status(400).json({
+              error: 'Phone number has too many digits. Please provide a valid 10-digit phone number or omit the phone field.',
+            });
+          } else {
+            return res.status(400).json({
+              error: 'Invalid phone format. Expected format: (555) 123-4567.',
+            });
+          }
+        }
       }
 
       // Update company by name
