@@ -10,7 +10,7 @@ export default async function handler(req, res) {
       return res.status(200).json(data);
 
     } else if (req.method === 'POST') {
-      const { name, city = null, state = null, address = null, phone = null, email = null } = req.body;
+      const { name, city = null, state = null, zip = null, phone = null, country = null } = req.body;
 
       // Validate required fields
       if (!name) {
@@ -20,13 +20,13 @@ export default async function handler(req, res) {
       // Insert new company
       const { data, error } = await supabase
         .from('companies')
-        .insert([{ name, city, state, address, phone, email }]);
+        .insert([{ name, city, state, zip, phone, country }]);
       if (error) throw error;
 
       return res.status(201).json(data);
 
     } else if (req.method === 'PUT') {
-      const { name, city = null, state = null, address = null, phone = null, email = null } = req.body;
+      const { name, city = null, state = null, zip = null, phone = null, country = null } = req.body;
 
       // Validate required fields
       if (!name) {
@@ -36,8 +36,9 @@ export default async function handler(req, res) {
       // Update company by name
       const { data, error } = await supabase
         .from('companies')
-        .update({ city, state, address, phone, email })
+        .update({ city, state, zip, phone, country })
         .eq('name', name);
+
       if (error) throw error;
 
       return res.status(200).json(data);
