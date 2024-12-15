@@ -13,34 +13,58 @@ export default async function handler(req, res) {
 
     // Handle GET requests
     if (req.method === 'GET') {
-      // Fetch all data from the 'logentries' table
       const { data, error } = await supabase.from('logentries').select('*');
       if (error) throw error;
-
-      // Return the data as JSON
       return res.status(200).json(data);
 
     // Handle POST requests
     } else if (req.method === 'POST') {
       const { logType, keywords, followup } = req.body;
 
-      // Validate required fields
       if (!logType || !keywords) {
         return res.status(400).json({ error: 'logType and keywords are required.' });
       }
 
-      // Insert new log entry into the 'logentries' table
       const { data, error } = await supabase
         .from('logentries')
         .insert([{ logType, keywords, followup }]);
       if (error) throw error;
-
-      // Return the created log entry as JSON
       return res.status(201).json(data);
+
+    // Handle PATCH requests
+    } else if (req.method === 'PATCH') {
+      const { id } = req.query; // Get the log entry ID from query params
+      const { logType, keywords, followup } = req.body;
+
+      if (!id) {
+        return res.status(400).json({ error: 'Log entry ID is required.' });
+      }
+
+      const { data, error } = await supabase
+        .from('logentries')
+        .update({ logType, keywords, followup })
+        .eq('id', id); // Update the record where id matches
+      if (error) throw error;
+      return res.status(200).json(data);
+
+    // Handle DELETE requests
+    } else if (req.method === 'DELETE') {
+      const { id } = req.query; // Get the log entry ID from query params
+
+      if (!id) {
+        return res.status(400).json({ error: 'Log entry ID is required.' });
+      }
+
+      const { data, error } = await supabase
+        .from('logentries')
+        .delete()
+        .eq('id', id); // Delete the record where id matches
+      if (error) throw error;
+      return res.status(200).json({ message: `Log entry with ID ${id} deleted.` });
 
     // Handle unsupported HTTP methods
     } else {
-      res.setHeader('Allow', ['GET', 'POST']);
+      res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
