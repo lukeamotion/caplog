@@ -18,15 +18,35 @@ export default async function handler(req, res) {
 
       // Validate required fields
       if (!firstname || !lastname || !email || !companyid) {
+        return res.status(400).json({
+          error: 'First name, last name, email, and companyid are required.',
+        });
+      }
+
+      // Check for duplicate email
+      const { data: existingContact, error: fetchError } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        // Handle unexpected Supabase errors
+        console.error('Supabase fetch error:', fetchError);
+        throw fetchError;
+      }
+
+      if (existingContact) {
         return res
-          .status(400)
-          .json({ error: 'First name, last name, email, and companyid are required.' });
+          .status(409)
+          .json({ error: `A contact with the email "${email}" already exists.` });
       }
 
       // Insert new contact into the 'contacts' table
       const { data, error } = await supabase
         .from('contacts')
         .insert([{ firstname, lastname, email, companyid }]);
+
       if (error) throw error;
 
       // Return the created contact as JSON
