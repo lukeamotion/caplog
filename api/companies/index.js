@@ -50,44 +50,8 @@ export default async function handler(req, res) {
 
       return res.status(201).json({ message: 'Company created successfully.', data });
 
-    } else if (req.method === 'PATCH') {
-      // Update an existing company
-      const { name, city = null, state = null, zip = null, phone = null, country = null } = req.body;
-
-      if (!name) {
-        return res.status(400).json({ error: 'Company name is required for updates.' });
-      }
-
-      if (state && !allowedStates.includes(state)) {
-        return res.status(400).json({ error: `Invalid state value: ${state}.` });
-      }
-
-      const { data, error } = await supabase
-        .from('companies')
-        .update({ city, state, zip, phone, country })
-        .eq('name', name);
-      if (error) throw error;
-
-      return res.status(200).json({ message: 'Company updated successfully.', data });
-
-    } else if (req.method === 'DELETE') {
-      // Delete a company
-      const { name } = req.body;
-
-      if (!name) {
-        return res.status(400).json({ error: 'Company name is required for deletion.' });
-      }
-
-      const { data, error } = await supabase
-        .from('companies')
-        .delete()
-        .eq('name', name);
-      if (error) throw error;
-
-      return res.status(200).json({ message: 'Company deleted successfully.', data });
-
     } else {
-      res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
+      res.setHeader('Allow', ['GET', 'POST']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {

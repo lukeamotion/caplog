@@ -11,10 +11,13 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'GET') {
+      // Retrieve all contacts
       const { data, error } = await supabase.from('contacts').select('*');
       if (error) throw error;
       return res.status(200).json(data);
+
     } else if (req.method === 'POST') {
+      // Create a new contact
       const { firstname, lastname, email, companyid } = req.body;
 
       if (!firstname || !lastname || !email || !companyid) {
@@ -28,38 +31,10 @@ export default async function handler(req, res) {
         .insert([{ firstname, lastname, email, companyid }]);
       if (error) throw error;
 
-      return res.status(201).json(data);
-    } else if (req.method === 'PATCH') {
-      const { id } = req.query;
-      const { firstname, lastname, email } = req.body;
+      return res.status(201).json({ message: 'Contact created successfully.', data });
 
-      if (!id) {
-        return res.status(400).json({ error: 'Contact ID is required.' });
-      }
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .update({ firstname, lastname, email })
-        .eq('id', id);
-      if (error) throw error;
-
-      return res.status(200).json(data);
-    } else if (req.method === 'DELETE') {
-      const { id } = req.query;
-
-      if (!id) {
-        return res.status(400).json({ error: 'Contact ID is required.' });
-      }
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-
-      return res.status(200).json({ message: `Contact with ID ${id} deleted.` });
     } else {
-      res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
+      res.setHeader('Allow', ['GET', 'POST']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
