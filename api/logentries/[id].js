@@ -1,3 +1,8 @@
+console.log('Incoming request to [id].js');
+console.log('Request Method:', req.method);
+console.log('Request Query Parameters:', req.query);
+
+
 import { supabase } from '../../../utils/supabase.js';
 
 export default async function handler(req, res) {
