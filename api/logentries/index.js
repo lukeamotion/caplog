@@ -22,7 +22,7 @@ export default async function handler(req, res) {
         .from('logentries')
         .select(
           `
-          id, logtype, keywords, followup,
+          id, logtype, keywords, notes, followup,
           logentrycontacts ( contactid, contacts ( firstname, lastname, email ) ),
           logentrycompanies ( companyid, companies ( name, city, state, zip ) )
           `
@@ -38,16 +38,16 @@ export default async function handler(req, res) {
 
     // Handle POST requests
     } else if (req.method === 'POST') {
-      const { logtype, keywords, followup, contactids = [], companyids = [] } = req.body;
+      const { logtype, keywords, followup, notes, contactids = [], companyids = [] } = req.body;
 
-      if (!logtype || !keywords) {
-        return res.status(400).json({ error: 'logtype and keywords are required.' });
+      if (!logtype || !keywords || !notes) {
+        return res.status(400).json({ error: 'logtype, keywords, and notes are required.' });
       }
 
-      // Insert the main log entry
+      // Insert the main log entry with full text (notes)
       const { data: logEntry, error: logError } = await supabase
         .from('logentries')
-        .insert([{ logtype, keywords, followup }])
+        .insert([{ logtype, keywords, notes, followup }])
         .select('id')
         .single();
 
@@ -87,18 +87,25 @@ export default async function handler(req, res) {
     // Handle PATCH requests
     } else if (req.method === 'PATCH') {
       const { id } = req.query; // Get the log entry ID from query params
-      const { logtype, keywords, followup } = req.body;
+      const { logtype, keywords, followup, notes } = req.body;
 
       if (!id) {
         return res.status(400).json({ error: 'Log entry ID is required.' });
       }
 
+      const updates = {};
+      if (logtype) updates.logtype = logtype;
+      if (keywords) updates.keywords = keywords;
+      if (followup !== undefined) updates.followup = followup;
+      if (notes) updates.notes = notes;
+
       const { data, error } = await supabase
         .from('logentries')
-        .update({ logtype, keywords, followup })
+        .update(updates)
         .eq('id', id); // Update the record where id matches
+
       if (error) throw error;
-      return res.status(200).json(data);
+      return res.status(200).json({ message: 'Log entry updated successfully.', data });
 
     // Handle DELETE requests
     } else if (req.method === 'DELETE') {
