@@ -17,14 +17,26 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Company name is required.' });
       }
 
-      // Insert company with all details into the database
+      // Clean and filter payload dynamically
+      const insertData = Object.fromEntries(
+        Object.entries({ name, city, state, zip, phone, country }).filter(
+          ([_, value]) => value !== undefined && value !== null
+        )
+      );
+
+      console.log("Payload being sent to Supabase:", insertData);
+
+      // Insert into Supabase
       const { data, error } = await supabase
         .from('companies')
-        .insert([{ name, city, state, zip, phone, country }])
+        .insert([insertData])
         .select('id, name, city, state, zip, phone, country')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Insert Error:", error.message || error);
+        throw error;
+      }
 
       return res.status(201).json({ message: 'Company created successfully.', data });
 
@@ -41,12 +53,23 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'At least one field must be provided for update.' });
       }
 
+      const updateData = Object.fromEntries(
+        Object.entries({ name, city, state, zip, phone, country }).filter(
+          ([_, value]) => value !== undefined && value !== null
+        )
+      );
+
+      console.log("Updating with payload:", updateData);
+
       const { data, error } = await supabase
         .from('companies')
-        .update({ name, city, state, zip, phone, country })
+        .update(updateData)
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Update Error:", error.message || error);
+        throw error;
+      }
 
       return res.status(200).json({ message: 'Company updated successfully.', data });
 
@@ -63,7 +86,10 @@ export default async function handler(req, res) {
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Delete Error:", error.message || error);
+        throw error;
+      }
 
       return res.status(200).json({ message: 'Company deleted successfully.', data });
 
