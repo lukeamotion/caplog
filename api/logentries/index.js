@@ -10,7 +10,7 @@ function validateApiKey(req) {
   }
 }
 
-// Function to extract keywords from notes (excluding names/companies)
+// Function to extract keywords from text (excluding names/companies)
 function extractKeywords(notes, contacts = [], companies = []) {
   const words = notes
     .split(/\s+/) // Split text into words
@@ -63,10 +63,10 @@ export default async function handler(req, res) {
     } else if (req.method === 'POST') {
       let { logtype, keywords, followup = false, description, notes, contactids = [], companyids = [] } = req.body;
 
-      // Validate notes (description can map to notes)
-      const finalNotes = notes || description;
+      // Validate text (description can map to notes)
+      const finalNotes = text || description;
       if (!finalNotes) {
-        return res.status(400).json({ error: 'The notes field is required.' });
+        return res.status(400).json({ error: 'The text field is required.' });
       }
 
       // Infer logtype if not provided
@@ -129,7 +129,7 @@ export default async function handler(req, res) {
     // Handle PATCH requests
     } else if (req.method === 'PATCH') {
       const { id } = req.query;
-      const { logtype, keywords, followup, notes } = req.body;
+      const { logtype, keywords, followup, text } = req.body;
 
       if (!id) {
         return res.status(400).json({ error: 'Log entry ID is required.' });
