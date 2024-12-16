@@ -11,13 +11,42 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'GET') {
-      // Retrieve all contacts
-      const { data, error } = await supabase.from('contacts').select('*');
+      const { name, company } = req.query;
+
+      if (company) {
+        // Look up companyid by company name
+        const { data: companyData, error: companyError } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('name', company)
+          .single();
+
+        if (companyError || !companyData) {
+          return res.status(400).json({
+            error: `Company '${company}' not found. Please provide a valid company name.`,
+          });
+        }
+
+        // Retrieve contacts for the found companyid
+        const { data, error } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('companyid', companyData.id);
+
+        if (error) throw error;
+        return res.status(200).json(data);
+      }
+
+      // Default behavior to retrieve all contacts or filter by name
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .ilike('firstname', `%${name || ''}%`); // Filters by name if provided
       if (error) throw error;
+
       return res.status(200).json(data);
 
     } else if (req.method === 'POST') {
-      // Create a new contact
       let { name, firstname, lastname, email, companyid } = req.body;
 
       // Split `name` into `firstname` and `lastname` if not already provided
