@@ -11,8 +11,8 @@ function validateApiKey(req) {
 }
 
 // Function to extract keywords from text (excluding names/companies)
-function extractKeywords(notes, contacts = [], companies = []) {
-  const words = notes
+function extractKeywords(text, contacts = [], companies = []) {
+  const words = text
     .split(/\s+/) // Split text into words
     .map((word) => word.replace(/[^\w]/g, '').toLowerCase()) // Remove punctuation
     .filter((word) => word.length > 2); // Exclude short words (e.g., a, is, to)
@@ -22,13 +22,13 @@ function extractKeywords(notes, contacts = [], companies = []) {
 }
 
 // Function to infer logtype if not provided
-function inferLogtype(notes) {
-  const lowerNotes = notes.toLowerCase();
-  if (lowerNotes.includes('email')) return 'Email';
-  if (lowerNotes.includes('call')) return 'Call';
-  if (lowerNotes.includes('meeting')) return 'Meeting';
-  if (lowerNotes.includes('encounter')) return 'Encounter';
-  if (lowerNotes.includes('note')) return 'Note';
+function inferLogtype(text) {
+  const lowerText = text.toLowerCase();
+  if (lowerText.includes('email')) return 'Email';
+  if (lowerText.includes('call')) return 'Call';
+  if (lowerText.includes('meeting')) return 'Meeting';
+  if (lowerText.includes('encounter')) return 'Encounter';
+  if (lowerText.includes('note')) return 'Note';
   return 'Other'; // Default to 'Other'
 }
 
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
         .from('logentries')
         .select(
           `
-          id, logtype, keywords, notes, followup,
+          id, logtype, keywords, text, followup,
           logentrycontacts ( contactid, contacts ( firstname, lastname, email ) ),
           logentrycompanies ( companyid, companies ( name, city, state, zip ) )
           `
@@ -61,21 +61,21 @@ export default async function handler(req, res) {
 
     // Handle POST requests
     } else if (req.method === 'POST') {
-      let { logtype, keywords, followup = false, description, notes, contactids = [], companyids = [] } = req.body;
+      let { logtype, keywords, followup = false, description, text, contactids = [], companyids = [] } = req.body;
 
-      // Validate text (description can map to notes)
-      const finalNotes = text || description;
-      if (!finalNotes) {
+      // Validate text (description can map to text)
+      const finalText = text || description;
+      if (!finalText) {
         return res.status(400).json({ error: 'The text field is required.' });
       }
 
       // Infer logtype if not provided
-      logtype = logtype || inferLogtype(finalNotes);
+      logtype = logtype || inferLogtype(finalText);
 
       // Extract keywords, excluding contacts and companies
       const contacts = contactids.map((id) => `Contact-${id}`); // Placeholder for contacts
       const companies = companyids.map((id) => `Company-${id}`);
-      const extractedKeywords = extractKeywords(finalNotes, contacts, companies);
+      const extractedKeywords = extractKeywords(finalText, contacts, companies);
       if (!keywords || keywords.length === 0) {
         keywords = extractedKeywords;
       }
@@ -87,7 +87,7 @@ export default async function handler(req, res) {
       // Insert the main log entry
       const { data: logEntry, error: logError } = await supabase
         .from('logentries')
-        .insert([{ logtype, keywords, notes: finalNotes, followup }])
+        .insert([{ logtype, keywords, text: finalText, followup }])
         .select('id')
         .single();
 
@@ -139,7 +139,7 @@ export default async function handler(req, res) {
       if (logtype) updates.logtype = logtype;
       if (keywords) updates.keywords = keywords;
       if (followup !== undefined) updates.followup = followup;
-      if (notes) updates.notes = notes;
+      if (text) updates.text = text;
 
       const { data, error } = await supabase
         .from('logentries')
