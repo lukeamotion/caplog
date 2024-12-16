@@ -1,7 +1,10 @@
 import { supabase } from '../../../utils/supabase.js';
 
 export default async function handler(req, res) {
-  const { id } = req.query; // Captures the dynamic ID from the URL
+  const { id } = req.query;
+
+  console.log('Request received:', req.method, 'ID:', id); // Debug incoming request
+  console.log('Request body:', req.body);
 
   if (!id) {
     return res.status(400).json({ error: 'Log entry ID is required.' });
@@ -22,7 +25,7 @@ export default async function handler(req, res) {
 
       if (error) throw error;
 
-      return res.status(200).json({ message: 'Log entry updated successfully.', data });
+      return res.status(200).json({ message: `Log entry with ID ${id} updated successfully.`, data });
     } else if (req.method === 'DELETE') {
       const { data, error } = await supabase
         .from('logentries')
@@ -31,13 +34,13 @@ export default async function handler(req, res) {
 
       if (error) throw error;
 
-      return res.status(200).json({ message: 'Log entry deleted successfully.', data });
+      return res.status(200).json({ message: `Log entry with ID ${id} deleted successfully.`, data });
     } else {
       res.setHeader('Allow', ['PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
-    console.error('Error in [id].js:', error);
+    console.error('Error in [id] handler:', error);
     return res.status(500).json({ error: 'Internal Server Error.' });
   }
 }
