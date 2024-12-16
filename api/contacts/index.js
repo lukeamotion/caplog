@@ -18,7 +18,14 @@ export default async function handler(req, res) {
 
     } else if (req.method === 'POST') {
       // Create a new contact
-      const { firstname, lastname, email, companyid } = req.body;
+      let { name, firstname, lastname, email, companyid } = req.body;
+
+      // Split `name` into `firstname` and `lastname` if not already provided
+      if (name && (!firstname || !lastname)) {
+        const [first, ...lastParts] = name.split(' ');
+        firstname = firstname || first;
+        lastname = lastname || lastParts.join(' '); // Handles multi-part last names
+      }
 
       if (!firstname || !lastname || !email || !companyid) {
         return res.status(400).json({
