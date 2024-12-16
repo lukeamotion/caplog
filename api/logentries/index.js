@@ -10,10 +10,10 @@ function validateApiKey(req) {
   }
 }
 
-// Function to extract keywords from notes (excluding names and companies)
+// Function to extract keywords from notes (excluding names/companies)
 function extractKeywords(notes, contacts = [], companies = []) {
   const words = notes
-    .split(/\s+/) // Split by spaces
+    .split(/\s+/) // Split text into words
     .map((word) => word.replace(/[^\w]/g, '').toLowerCase()) // Remove punctuation
     .filter((word) => word.length > 2); // Exclude short words (e.g., a, is, to)
 
@@ -21,7 +21,7 @@ function extractKeywords(notes, contacts = [], companies = []) {
   return [...new Set(words.filter((word) => !excludedWords.includes(word)))];
 }
 
-// Function to infer logtype from notes
+// Function to infer logtype if not provided
 function inferLogtype(notes) {
   const lowerNotes = notes.toLowerCase();
   if (lowerNotes.includes('email')) return 'Email';
@@ -29,13 +29,15 @@ function inferLogtype(notes) {
   if (lowerNotes.includes('meeting')) return 'Meeting';
   if (lowerNotes.includes('encounter')) return 'Encounter';
   if (lowerNotes.includes('note')) return 'Note';
-  return 'Other';
+  return 'Other'; // Default to 'Other'
 }
 
 export default async function handler(req, res) {
   try {
+    // Validate API Key
     validateApiKey(req);
 
+    // Handle GET requests
     if (req.method === 'GET') {
       const { id } = req.query;
 
@@ -57,29 +59,35 @@ export default async function handler(req, res) {
       if (error) throw error;
       return res.status(200).json(data);
 
+    // Handle POST requests
     } else if (req.method === 'POST') {
-      const { logtype, notes, followup = false, contactids = [], companyids = [] } = req.body;
+      let { logtype, keywords, followup = false, description, notes, contactids = [], companyids = [] } = req.body;
 
-      if (!notes) {
+      // Validate notes (description can map to notes)
+      const finalNotes = notes || description;
+      if (!finalNotes) {
         return res.status(400).json({ error: 'The notes field is required.' });
       }
 
-      // Extract keywords and exclude contact/company references
-      const contacts = contactids.map((id) => `Contact-${id}`); // Placeholder for contact names
-      const companies = companyids.map((id) => `Company-${id}`); // Placeholder for company names
-      const keywords = extractKeywords(notes, contacts, companies);
+      // Infer logtype if not provided
+      logtype = logtype || inferLogtype(finalNotes);
 
-      if (keywords.length === 0) {
-        return res.status(400).json({ error: 'At least one keyword must be extracted from notes.' });
+      // Extract keywords, excluding contacts and companies
+      const contacts = contactids.map((id) => `Contact-${id}`); // Placeholder for contacts
+      const companies = companyids.map((id) => `Company-${id}`);
+      const extractedKeywords = extractKeywords(finalNotes, contacts, companies);
+      if (!keywords || keywords.length === 0) {
+        keywords = extractedKeywords;
       }
 
-      // Infer logtype if not explicitly provided
-      const inferredLogtype = logtype || inferLogtype(notes);
+      if (keywords.length === 0) {
+        return res.status(400).json({ error: 'At least one keyword must be included.' });
+      }
 
       // Insert the main log entry
       const { data: logEntry, error: logError } = await supabase
         .from('logentries')
-        .insert([{ logtype: inferredLogtype, keywords, notes, followup }])
+        .insert([{ logtype, keywords, notes: finalNotes, followup }])
         .select('id')
         .single();
 
@@ -114,10 +122,11 @@ export default async function handler(req, res) {
       return res.status(201).json({
         message: 'Log entry created successfully with associated contacts and companies.',
         logentryid,
-        inferredLogtype,
+        logtype,
         keywords,
       });
 
+    // Handle PATCH requests
     } else if (req.method === 'PATCH') {
       const { id } = req.query;
       const { logtype, keywords, followup, notes } = req.body;
@@ -140,6 +149,7 @@ export default async function handler(req, res) {
       if (error) throw error;
       return res.status(200).json({ message: 'Log entry updated successfully.', data });
 
+    // Handle DELETE requests
     } else if (req.method === 'DELETE') {
       const { id } = req.query;
 
@@ -154,6 +164,8 @@ export default async function handler(req, res) {
       await supabase.from('logentrycompanies').delete().eq('logentryid', id);
 
       return res.status(200).json({ message: `Log entry with ID ${id} deleted.` });
+
+    // Handle unsupported methods
     } else {
       res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
