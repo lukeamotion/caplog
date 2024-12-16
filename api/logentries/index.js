@@ -34,6 +34,7 @@ function inferLogtype(text) {
 
 export default async function handler(req, res) {
   try {
+    // Validate API Key
     validateApiKey(req);
 
     // Handle GET requests
