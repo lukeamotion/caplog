@@ -1,12 +1,11 @@
 import { supabase } from '../../utils/supabase.js';
 
-// Centralized API Key Validation
+// Helper function for API key validation
 function validateApiKey(req) {
   const apiKey = req.headers['authorization'];
   const validKey = process.env.OPENAI_KEY;
 
-  if (!apiKey || apiKey !== `Bearer ${validKey}`) {
-    console.error('Invalid or missing API Key:', apiKey);
+  if (apiKey !== `Bearer ${validKey}`) {
     throw new Error('Unauthorized: Invalid API Key');
   }
 }
@@ -35,7 +34,6 @@ function inferLogtype(text) {
 
 export default async function handler(req, res) {
   try {
-    // Validate API Key for all requests
     validateApiKey(req);
 
     // Handle GET requests
