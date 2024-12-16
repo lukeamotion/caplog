@@ -73,6 +73,35 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ message: 'Company updated successfully.', data });
 
+    } else if (req.method === 'GET') {
+      // Retrieve company data
+      const { id } = req.query;
+
+      if (!id) {
+        // Fetch all companies if no ID is provided
+        const { data, error } = await supabase.from('companies').select('*');
+
+        if (error) {
+          console.error("Supabase Fetch All Error:", error.message || error);
+          throw error;
+        }
+
+        return res.status(200).json({ message: 'Companies retrieved successfully.', data });
+      } else {
+        // Fetch specific company
+        const { data, error } = await supabase
+          .from('companies')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (error) {
+          console.error("Supabase Fetch Error:", error.message || error);
+          throw error;
+        }
+
+        return res.status(200).json({ message: 'Company retrieved successfully.', data });
+      }
     } else if (req.method === 'DELETE') {
       // Delete a specific company
       const { id } = req.query;
@@ -94,7 +123,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: 'Company deleted successfully.', data });
 
     } else {
-      res.setHeader('Allow', ['POST', 'PATCH', 'DELETE']);
+      res.setHeader('Allow', ['POST', 'PATCH', 'GET', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
