@@ -1,40 +1,4 @@
-import fetch from 'node-fetch';
 import { supabase } from '../../utils/supabase.js';
-
-// Function to fetch company details from Google Places API
-async function fetchCompanyDetailsFromGooglePlaces(companyName) {
-  const googleApiKey = process.env.GOOGLE_PLACES_API_KEY;
-
-  const endpoint = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(
-    companyName
-  )}&inputtype=textquery&fields=name,formatted_address,formatted_phone_number&key=${googleApiKey}`;
-
-  const response = await fetch(endpoint);
-
-  if (!response.ok) {
-    console.error('Google Places API Error:', await response.text());
-    throw new Error('Failed to fetch company details from Google Places API.');
-  }
-
-  const data = await response.json();
-
-  if (!data.candidates || data.candidates.length === 0) {
-    console.warn(`No results found for company: ${companyName}`);
-    return { name: companyName, city: null, state: null, zip: null, phone: null, country: null };
-  }
-
-  const result = data.candidates[0];
-  const addressParts = result.formatted_address.split(',');
-
-  return {
-    name: result.name,
-    city: addressParts[addressParts.length - 3]?.trim() || null,
-    state: addressParts[addressParts.length - 2]?.split(' ')[0]?.trim() || null,
-    zip: addressParts[addressParts.length - 2]?.split(' ')[1]?.trim() || null,
-    phone: result.formatted_phone_number || null,
-    country: addressParts[addressParts.length - 1]?.trim() || null,
-  };
-}
 
 export default async function handler(req, res) {
   try {
@@ -53,20 +17,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Company name is required.' });
       }
 
-      // Fetch details from Google Places API if city/state/phone are missing
-      let enrichedData = { name, city, state, zip, phone, country };
-      if (!city || !state || !zip || !phone) {
-        try {
-          enrichedData = await fetchCompanyDetailsFromGooglePlaces(name);
-        } catch (err) {
-          console.error('Error fetching data from Google Places API:', err.message);
-        }
-      }
-
       // Insert company into the database
       const { data, error } = await supabase
         .from('companies')
-        .insert([enrichedData])
+        .insert([{ name, city, state, zip, phone, country }])
         .select('id')
         .single();
 
@@ -84,4 +38,41 @@ export default async function handler(req, res) {
       }
 
       if (!name && !city && !state && !zip && !phone && !country) {
-        return res.status(400).json({ error: 'At least one
+        return res.status(400).json({ error: 'At least one field must be provided for update.' });
+      }
+
+      const { data, error } = await supabase
+        .from('companies')
+        .update({ name, city, state, zip, phone, country })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      return res.status(200).json({ message: 'Company updated successfully.', data });
+
+    } else if (req.method === 'DELETE') {
+      // Delete a specific company
+      const { id } = req.query;
+
+      if (!id) {
+        return res.status(400).json({ error: 'Company ID is required.' });
+      }
+
+      const { data, error } = await supabase
+        .from('companies')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      return res.status(200).json({ message: 'Company deleted successfully.', data });
+
+    } else {
+      res.setHeader('Allow', ['POST', 'PATCH', 'DELETE']);
+      return res.status(405).end(`Method ${req.method} Not Allowed`);
+    }
+  } catch (error) {
+    console.error('Error in companies handler:', error.message || error);
+    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+  }
+}
