@@ -1,20 +1,41 @@
-import { supabase } from '../../utils/supabase.js'; // Ensure the .js extension
+import { supabase } from '../../utils/supabase.js';
+
+// Helper function for API key validation
+function validateApiKey(req) {
+  const apiKey = req.headers['authorization'];
+  const validKey = process.env.OPENAI_KEY;
+
+  if (apiKey !== `Bearer ${validKey}`) {
+    throw new Error('Unauthorized: Invalid API Key');
+  }
+}
+
+// Function to extract keywords from notes (excluding names and companies)
+function extractKeywords(notes, contacts = [], companies = []) {
+  const words = notes
+    .split(/\s+/) // Split by spaces
+    .map((word) => word.replace(/[^\w]/g, '').toLowerCase()) // Remove punctuation
+    .filter((word) => word.length > 2); // Exclude short words (e.g., a, is, to)
+
+  const excludedWords = [...contacts, ...companies].map((entry) => entry.toLowerCase());
+  return [...new Set(words.filter((word) => !excludedWords.includes(word)))];
+}
+
+// Function to infer logtype from notes
+function inferLogtype(notes) {
+  const lowerNotes = notes.toLowerCase();
+  if (lowerNotes.includes('email')) return 'Email';
+  if (lowerNotes.includes('call')) return 'Call';
+  if (lowerNotes.includes('meeting')) return 'Meeting';
+  if (lowerNotes.includes('encounter')) return 'Encounter';
+  if (lowerNotes.includes('note')) return 'Note';
+  return 'Other';
+}
 
 export default async function handler(req, res) {
   try {
-    // Log request headers for debugging
-    console.log('Request Headers:', req.headers);
+    validateApiKey(req);
 
-    // Extract the API key from the Authorization header
-    const apiKey = req.headers['authorization'];
-    const validKey = process.env.OPENAI_KEY; // Key stored in Vercel environment variables
-
-    // Check if the API key is valid
-    if (apiKey !== `Bearer ${validKey}`) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
-    }
-
-    // Handle GET requests
     if (req.method === 'GET') {
       const { id } = req.query;
 
@@ -29,25 +50,36 @@ export default async function handler(req, res) {
         );
 
       if (id) {
-        query = query.eq('id', id); // Filter by specific log entry ID if provided
+        query = query.eq('id', id);
       }
 
       const { data, error } = await query;
       if (error) throw error;
       return res.status(200).json(data);
 
-    // Handle POST requests
     } else if (req.method === 'POST') {
-      const { logtype, keywords, followup, notes, contactids = [], companyids = [] } = req.body;
+      const { logtype, notes, followup = false, contactids = [], companyids = [] } = req.body;
 
-      if (!logtype || !keywords || !notes) {
-        return res.status(400).json({ error: 'logtype, keywords, and notes are required.' });
+      if (!notes) {
+        return res.status(400).json({ error: 'The notes field is required.' });
       }
 
-      // Insert the main log entry with full text (notes)
+      // Extract keywords and exclude contact/company references
+      const contacts = contactids.map((id) => `Contact-${id}`); // Placeholder for contact names
+      const companies = companyids.map((id) => `Company-${id}`); // Placeholder for company names
+      const keywords = extractKeywords(notes, contacts, companies);
+
+      if (keywords.length === 0) {
+        return res.status(400).json({ error: 'At least one keyword must be extracted from notes.' });
+      }
+
+      // Infer logtype if not explicitly provided
+      const inferredLogtype = logtype || inferLogtype(notes);
+
+      // Insert the main log entry
       const { data: logEntry, error: logError } = await supabase
         .from('logentries')
-        .insert([{ logtype, keywords, notes, followup }])
+        .insert([{ logtype: inferredLogtype, keywords, notes, followup }])
         .select('id')
         .single();
 
@@ -82,11 +114,12 @@ export default async function handler(req, res) {
       return res.status(201).json({
         message: 'Log entry created successfully with associated contacts and companies.',
         logentryid,
+        inferredLogtype,
+        keywords,
       });
 
-    // Handle PATCH requests
     } else if (req.method === 'PATCH') {
-      const { id } = req.query; // Get the log entry ID from query params
+      const { id } = req.query;
       const { logtype, keywords, followup, notes } = req.body;
 
       if (!id) {
@@ -102,40 +135,30 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from('logentries')
         .update(updates)
-        .eq('id', id); // Update the record where id matches
+        .eq('id', id);
 
       if (error) throw error;
       return res.status(200).json({ message: 'Log entry updated successfully.', data });
 
-    // Handle DELETE requests
     } else if (req.method === 'DELETE') {
-      const { id } = req.query; // Get the log entry ID from query params
+      const { id } = req.query;
 
       if (!id) {
         return res.status(400).json({ error: 'Log entry ID is required.' });
       }
 
-      // Delete the record from logentries
-      const { data, error } = await supabase
-        .from('logentries')
-        .delete()
-        .eq('id', id); // Delete the record where id matches
-
+      const { error } = await supabase.from('logentries').delete().eq('id', id);
       if (error) throw error;
 
-      // Clean up related records in join tables
       await supabase.from('logentrycontacts').delete().eq('logentryid', id);
       await supabase.from('logentrycompanies').delete().eq('logentryid', id);
 
       return res.status(200).json({ message: `Log entry with ID ${id} deleted.` });
-
-    // Handle unsupported HTTP methods
     } else {
       res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
-    // Log error details and return a 500 response
     console.error('Error in logentries handler:', error.message || error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
