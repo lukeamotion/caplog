@@ -69,38 +69,8 @@ export default async function handler(req, res) {
 
       return res.status(201).json({ message: 'Contact created successfully.', data });
 
-    } else if (req.method === 'PATCH') {
-      const { id } = req.query;
-      const { firstname, lastname, email, phone, companyid } = req.body;
-
-      if (!id) {
-        return res.status(400).json({ error: 'Contact ID is required for updates.' });
-      }
-
-      // Build the update object dynamically
-      const updates = {};
-      if (firstname) updates.firstname = firstname;
-      if (lastname) updates.lastname = lastname;
-      if (email) updates.email = email;
-      if (phone) updates.phone = phone;
-      if (companyid) updates.companyid = companyid;
-
-      if (Object.keys(updates).length === 0) {
-        return res.status(400).json({ error: 'No valid fields provided for update.' });
-      }
-
-      // Update the contact in the database
-      const { data, error } = await supabase
-        .from('contacts')
-        .update(updates)
-        .eq('id', id);
-
-      if (error) throw error;
-
-      return res.status(200).json({ message: 'Contact updated successfully.', data });
-
     } else {
-      res.setHeader('Allow', ['GET', 'POST', 'PATCH']);
+      res.setHeader('Allow', ['GET', 'POST']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
