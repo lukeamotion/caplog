@@ -11,8 +11,8 @@ function validateApiKey(req) {
 }
 
 // Function to extract keywords from text (excluding names/companies)
-function extractKeywords(text, contacts = [], companies = []) {
-  const words = text
+function extractKeywords(notes, contacts = [], companies = []) {
+  const words = notes
     .split(/\s+/) // Split text into words
     .map((word) => word.replace(/[^\w]/g, '').toLowerCase()) // Remove punctuation
     .filter((word) => word.length > 2); // Exclude short words (e.g., a, is, to)
@@ -22,13 +22,13 @@ function extractKeywords(text, contacts = [], companies = []) {
 }
 
 // Function to infer logtype if not provided
-function inferLogtype(text) {
-  const lowerText = text.toLowerCase();
-  if (lowerText.includes('email')) return 'Email';
-  if (lowerText.includes('call')) return 'Call';
-  if (lowerText.includes('meeting')) return 'Meeting';
-  if (lowerText.includes('encounter')) return 'Encounter';
-  if (lowerText.includes('note')) return 'Note';
+function inferLogtype(notes) {
+  const lowerNotes = notes.toLowerCase();
+  if (lowerNotes.includes('email')) return 'Email';
+  if (lowerNotes.includes('call')) return 'Call';
+  if (lowerNotes.includes('meeting')) return 'Meeting';
+  if (lowerNotes.includes('encounter')) return 'Encounter';
+  if (lowerNotes.includes('note')) return 'Note';
   return 'Other'; // Default to 'Other'
 }
 
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
         .from('logentries')
         .select(
           `
-          id, logtype, keywords, text, followup,
+          id, logtype, keywords, notes, followup,
           logentrycontacts ( contactid, contacts ( firstname, lastname, email ) ),
           logentrycompanies ( companyid, companies ( name, city, state, zip ) )
           `
@@ -61,21 +61,21 @@ export default async function handler(req, res) {
 
     // Handle POST requests
     } else if (req.method === 'POST') {
-      let { logtype, keywords, followup = false, description, text, contactids = [], companyids = [] } = req.body;
+      let { logtype, keywords, followup = false, description, notes, contactids = [], companyids = [] } = req.body;
 
-      // Ensure text exists (map description to text if provided)
-      const finalText = text || description;
-      if (!finalText) {
+      // Validate text (description can map to notes)
+      const finalNotes = text || description;
+      if (!finalNotes) {
         return res.status(400).json({ error: 'The text field is required.' });
       }
 
       // Infer logtype if not provided
-      logtype = logtype || inferLogtype(finalText);
+      logtype = logtype || inferLogtype(finalNotes);
 
       // Extract keywords, excluding contacts and companies
-      const contacts = contactids.map((id) => `Contact-${id}`);
+      const contacts = contactids.map((id) => `Contact-${id}`); // Placeholder for contacts
       const companies = companyids.map((id) => `Company-${id}`);
-      const extractedKeywords = extractKeywords(finalText, contacts, companies);
+      const extractedKeywords = extractKeywords(finalNotes, contacts, companies);
       if (!keywords || keywords.length === 0) {
         keywords = extractedKeywords;
       }
@@ -87,7 +87,7 @@ export default async function handler(req, res) {
       // Insert the main log entry
       const { data: logEntry, error: logError } = await supabase
         .from('logentries')
-        .insert([{ logtype, keywords, text: finalText, followup }])
+        .insert([{ logtype, keywords, notes: finalNotes, followup }])
         .select('id')
         .single();
 
@@ -139,7 +139,7 @@ export default async function handler(req, res) {
       if (logtype) updates.logtype = logtype;
       if (keywords) updates.keywords = keywords;
       if (followup !== undefined) updates.followup = followup;
-      if (text) updates.text = text;
+      if (notes) updates.notes = notes;
 
       const { data, error } = await supabase
         .from('logentries')
@@ -165,6 +165,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ message: `Log entry with ID ${id} deleted.` });
 
+    // Handle unsupported methods
     } else {
       res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
