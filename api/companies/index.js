@@ -17,11 +17,11 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Company name is required.' });
       }
 
-      // Insert company into the database
+      // Insert company with all details into the database
       const { data, error } = await supabase
         .from('companies')
         .insert([{ name, city, state, zip, phone, country }])
-        .select('id')
+        .select('id, name, city, state, zip, phone, country')
         .single();
 
       if (error) throw error;
