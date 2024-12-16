@@ -1,21 +1,13 @@
-import { supabase } from '../../utils/supabase.js';
+import { supabase } from '../../../utils/supabase.js';
 
 export default async function handler(req, res) {
-  const { id } = req.query; // Extract log entry ID from the URL
+  const { id } = req.query; // Captures the dynamic ID from the URL
 
   if (!id) {
     return res.status(400).json({ error: 'Log entry ID is required.' });
   }
 
   try {
-    // Extract the API key from the Authorization header
-    const apiKey = req.headers['authorization'];
-    const validKey = process.env.OPENAI_KEY; // API key stored in Vercel environment variables
-
-    if (apiKey !== `Bearer ${validKey}`) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
-    }
-
     if (req.method === 'PATCH') {
       const { logtype, keywords, followup } = req.body;
 
@@ -45,7 +37,7 @@ export default async function handler(req, res) {
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
-    console.error('Error in logentries/[id] handler:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error in [id].js:', error);
+    return res.status(500).json({ error: 'Internal Server Error.' });
   }
 }
