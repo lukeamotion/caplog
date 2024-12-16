@@ -16,23 +16,73 @@ export default async function handler(req, res) {
 
     // Handle GET requests
     if (req.method === 'GET') {
-      const { data, error } = await supabase.from('logentries').select('*');
+      const { id } = req.query;
+
+      let query = supabase
+        .from('logentries')
+        .select(
+          `
+          id, logtype, keywords, followup,
+          logentrycontacts ( contactid, contacts ( firstname, lastname, email ) ),
+          logentrycompanies ( companyid, companies ( name, city, state, zip ) )
+          `
+        );
+
+      if (id) {
+        query = query.eq('id', id); // Filter by specific log entry ID if provided
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return res.status(200).json(data);
 
     // Handle POST requests
     } else if (req.method === 'POST') {
-      const { logtype, keywords, followup } = req.body;
+      const { logtype, keywords, followup, contactids = [], companyids = [] } = req.body;
 
       if (!logtype || !keywords) {
         return res.status(400).json({ error: 'logtype and keywords are required.' });
       }
 
-      const { data, error } = await supabase
+      // Insert the main log entry
+      const { data: logEntry, error: logError } = await supabase
         .from('logentries')
-        .insert([{ logtype, keywords, followup }]);
-      if (error) throw error;
-      return res.status(201).json(data);
+        .insert([{ logtype, keywords, followup }])
+        .select('id')
+        .single();
+
+      if (logError) throw logError;
+
+      const logentryid = logEntry.id;
+
+      // Associate contacts with the log entry
+      if (contactids.length > 0) {
+        const contactInserts = contactids.map((contactid) => ({
+          logentryid,
+          contactid,
+        }));
+        const { error: contactError } = await supabase
+          .from('logentrycontacts')
+          .insert(contactInserts);
+        if (contactError) throw contactError;
+      }
+
+      // Associate companies with the log entry
+      if (companyids.length > 0) {
+        const companyInserts = companyids.map((companyid) => ({
+          logentryid,
+          companyid,
+        }));
+        const { error: companyError } = await supabase
+          .from('logentrycompanies')
+          .insert(companyInserts);
+        if (companyError) throw companyError;
+      }
+
+      return res.status(201).json({
+        message: 'Log entry created successfully with associated contacts and companies.',
+        logentryid,
+      });
 
     // Handle PATCH requests
     } else if (req.method === 'PATCH') {
@@ -58,11 +108,18 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Log entry ID is required.' });
       }
 
+      // Delete the record from logentries
       const { data, error } = await supabase
         .from('logentries')
         .delete()
         .eq('id', id); // Delete the record where id matches
+
       if (error) throw error;
+
+      // Clean up related records in join tables
+      await supabase.from('logentrycontacts').delete().eq('logentryid', id);
+      await supabase.from('logentrycompanies').delete().eq('logentryid', id);
+
       return res.status(200).json({ message: `Log entry with ID ${id} deleted.` });
 
     // Handle unsupported HTTP methods
@@ -72,7 +129,7 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     // Log error details and return a 500 response
-    console.error('Error in logentries handler:', error);
+    console.error('Error in logentries handler:', error.message || error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
