@@ -1,11 +1,12 @@
 import { supabase } from '../../utils/supabase.js';
 
-// Helper function for API key validation
+// Centralized API Key Validation
 function validateApiKey(req) {
   const apiKey = req.headers['authorization'];
   const validKey = process.env.OPENAI_KEY;
 
-  if (apiKey !== `Bearer ${validKey}`) {
+  if (!apiKey || apiKey !== `Bearer ${validKey}`) {
+    console.error('Invalid or missing API Key:', apiKey);
     throw new Error('Unauthorized: Invalid API Key');
   }
 }
@@ -34,7 +35,7 @@ function inferLogtype(text) {
 
 export default async function handler(req, res) {
   try {
-    // Validate API Key
+    // Validate API Key for all requests
     validateApiKey(req);
 
     // Handle GET requests
@@ -63,7 +64,7 @@ export default async function handler(req, res) {
     } else if (req.method === 'POST') {
       let { logtype, keywords, followup = false, description, text, contactids = [], companyids = [] } = req.body;
 
-      // Validate text (description can map to text)
+      // Ensure text exists (map description to text if provided)
       const finalText = text || description;
       if (!finalText) {
         return res.status(400).json({ error: 'The text field is required.' });
@@ -73,7 +74,7 @@ export default async function handler(req, res) {
       logtype = logtype || inferLogtype(finalText);
 
       // Extract keywords, excluding contacts and companies
-      const contacts = contactids.map((id) => `Contact-${id}`); // Placeholder for contacts
+      const contacts = contactids.map((id) => `Contact-${id}`);
       const companies = companyids.map((id) => `Company-${id}`);
       const extractedKeywords = extractKeywords(finalText, contacts, companies);
       if (!keywords || keywords.length === 0) {
@@ -165,7 +166,6 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ message: `Log entry with ID ${id} deleted.` });
 
-    // Handle unsupported methods
     } else {
       res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
