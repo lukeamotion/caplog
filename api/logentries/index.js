@@ -112,7 +112,7 @@ export default async function handler(req, res) {
         id, logtype, keywords, text, followup,
         logentrycontacts ( contactid, contacts ( firstname, lastname, email ) ),
         logentrycompanies ( companyid, companies ( name, city, state, zip ) )
-      `);
+      `);    
     
       if (id) query = query.eq('id', id);
     
