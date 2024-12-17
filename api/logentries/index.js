@@ -104,7 +104,6 @@ export default async function handler(req, res) {
   try {
     validateApiKey(req);
 
-    // GET: Fetch log entries
     if (req.method === 'GET') {
       const { id } = req.query;
     
@@ -113,11 +112,11 @@ export default async function handler(req, res) {
         .select(
           `
           id, logtype, keywords, text, followup,
-          logentrycontacts:logentrycontacts!inner ( 
-            contactid, contacts!inner ( firstname, lastname, email )
+          logentrycontacts:logentrycontacts!fk_logentrycontacts_logentries ( 
+            contactid, contacts!fk_logentrycontacts_contacts ( firstname, lastname, email )
           ),
-          logentrycompanies:logentrycompanies!inner ( 
-            companyid, companies!inner ( name, city, state, zip )
+          logentrycompanies:logentrycompanies!fk_logentrycompanies_logentries ( 
+            companyid, companies ( name, city, state, zip )
           )
           `
         );
@@ -129,7 +128,7 @@ export default async function handler(req, res) {
     
       return res.status(200).json(data);
     }
-    
+      
 
     // POST: Create a log entry
     else if (req.method === 'POST') {
