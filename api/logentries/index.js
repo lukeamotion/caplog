@@ -1,13 +1,13 @@
 import { supabase } from '../../utils/supabase.js';
 console.log('ENV OPENAI_KEY:', process.env.OPENAI_KEY);
 
-
 // Helper function for API key validation
 function validateApiKey(req) {
-  const apiKey = req.headers['authorization'];
+  const apiKey = req.headers['authorization']?.trim();
   const validKey = process.env.OPENAI_KEY;
 
-  if (apiKey !== `Bearer ${validKey}`) {
+  if (!apiKey || apiKey !== `Bearer ${validKey}`) {
+    console.error(`Authorization failed: Received key "${apiKey}", Expected key "Bearer ${validKey}"`);
     throw new Error('Unauthorized: Invalid API Key');
   }
 }
@@ -105,25 +105,25 @@ async function createOrGetContact(fullName, email, companyName) {
 export default async function handler(req, res) {
   try {
     validateApiKey(req);
+
     if (req.method === 'GET') {
       const { id } = req.query;
-    
+
       let query = supabase
-      .from('logentries')
-      .select(`
-        id, logtype, keywords, text, followup,
-        logentrycontacts ( contactid, contacts ( firstname, lastname, email ) ),
-        logentrycompanies ( companyid, companies ( name, city, state, zip ) )
-      `);    
-    
+        .from('logentries')
+        .select(`
+          id, logtype, keywords, text, followup,
+          logentrycontacts ( contactid, contacts ( firstname, lastname, email ) ),
+          logentrycompanies ( companyid, companies ( name, city, state, zip ) )
+        `);
+
       if (id) query = query.eq('id', id);
-    
+
       const { data, error } = await query;
       if (error) throw error;
-    
+
       return res.status(200).json(data);
     }
-      
 
     // POST: Create a log entry
     else if (req.method === 'POST') {
