@@ -24,11 +24,11 @@ export default async function handler(req, res) {
 
     const { id } = req.query;
 
+    // GET Method: Fetch contacts with optional logs
     if (req.method === 'GET') {
       const { name, company, includeLogs } = req.query;
 
       if (includeLogs && id) {
-        // Fetch logs linked to a specific contact
         const { data, error } = await supabase
           .from('logentrycontacts')
           .select('logentryid, logentries (id, logtype, text, followup)')
@@ -68,6 +68,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json(data);
 
+    // POST Method: Create a contact
     } else if (req.method === 'POST') {
       let { name, firstname, lastname, email, companyid, company } = req.body;
 
@@ -119,6 +120,7 @@ export default async function handler(req, res) {
       if (error) throw error;
       return res.status(201).json({ message: 'Contact created successfully.', data });
 
+    // PATCH Method: Update a contact
     } else if (req.method === 'PATCH') {
       if (!id) {
         return res.status(400).json({ error: 'Contact ID is required.' });
@@ -142,17 +144,43 @@ export default async function handler(req, res) {
       if (error) throw error;
       return res.status(200).json({ message: 'Contact updated successfully.', data });
 
+    // DELETE Method: Delete a contact by ID or name
     } else if (req.method === 'DELETE') {
-      if (!id) {
-        return res.status(400).json({ error: 'Contact ID is required.' });
+      const { id, name } = req.query;
+
+      if (!id && !name) {
+        return res.status(400).json({ error: 'Contact ID or name is required for deletion.' });
+      }
+
+      let contactIdToDelete = id;
+
+      // If name is provided, find the contact ID
+      if (name && !id) {
+        const [firstName, ...lastNameParts] = name.split(' ');
+        const lastName = lastNameParts.join(' ');
+
+        const { data: contactData, error: searchError } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('firstname', firstName)
+          .eq('lastname', lastName)
+          .single();
+
+        if (searchError || !contactData) {
+          return res.status(404).json({ error: `Contact '${name}' not found.` });
+        }
+
+        contactIdToDelete = contactData.id;
       }
 
       // Cascade delete from logentrycontacts
-      await supabase.from('logentrycontacts').delete().eq('contactid', id);
+      await supabase.from('logentrycontacts').delete().eq('contactid', contactIdToDelete);
 
-      const { error } = await supabase.from('contacts').delete().eq('id', id);
+      // Delete the contact
+      const { error } = await supabase.from('contacts').delete().eq('id', contactIdToDelete);
 
       if (error) throw error;
+
       return res.status(204).end();
 
     } else {
