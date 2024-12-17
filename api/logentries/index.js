@@ -104,6 +104,7 @@ export default async function handler(req, res) {
   try {
     validateApiKey(req);
 
+    // GET: Fetch log entries
     if (req.method === 'GET') {
       const { id } = req.query;
 
@@ -112,8 +113,12 @@ export default async function handler(req, res) {
         .select(
           `
           id, logtype, keywords, text, followup,
-          logentrycontacts ( contactid, contacts ( firstname, lastname, email ) ),
-          logentrycompanies ( companyid, companies ( name, city, state, zip ) )
+          logentrycontacts:logentrycontacts ( 
+            contactid, contacts ( firstname, lastname, email )
+          ),
+          logentrycompanies:logentrycompanies ( 
+            companyid, companies ( name, city, state, zip )
+          )
           `
         );
 
@@ -123,8 +128,10 @@ export default async function handler(req, res) {
       if (error) throw error;
 
       return res.status(200).json(data);
+    }
 
-    } else if (req.method === 'POST') {
+    // POST: Create a log entry
+    else if (req.method === 'POST') {
       let { logtype, keywords, followup = false, description, text, contactids = [], companyids = [], contacts = [], companies = [] } = req.body;
 
       const finalText = text || description;
@@ -159,6 +166,7 @@ export default async function handler(req, res) {
         .single();
 
       if (logError) throw logError;
+
       const logentryid = logEntry.id;
 
       // Associate contacts if any
@@ -185,8 +193,10 @@ export default async function handler(req, res) {
         logtype,
         keywords,
       });
+    }
 
-    } else {
+    // Method not allowed
+    else {
       res.setHeader('Allow', ['GET', 'POST']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
