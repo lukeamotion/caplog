@@ -103,7 +103,6 @@ async function createOrGetContact(fullName, email, companyName) {
 export default async function handler(req, res) {
   try {
     validateApiKey(req);
-
     if (req.method === 'GET') {
       const { id } = req.query;
     
