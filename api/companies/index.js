@@ -16,12 +16,14 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Company name is required.' });
       }
 
+      // Clean up and filter input
       const insertData = Object.fromEntries(
         Object.entries({ name, city, state, zip, phone, country }).filter(
           ([_, value]) => value !== undefined
         )
       );
 
+      // Insert the company into the database
       const { data, error } = await supabase
         .from('companies')
         .insert([insertData])
@@ -34,6 +36,7 @@ export default async function handler(req, res) {
     } else if (req.method === 'GET') {
       const { id, includeLogs } = req.query;
 
+      // Include logs if specified
       if (includeLogs && id) {
         const { data, error } = await supabase
           .from('logentrycompanies')
@@ -44,6 +47,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ message: 'Logs retrieved successfully.', data });
       }
 
+      // Retrieve all companies or a single company
       const { data, error } = id
         ? await supabase.from('companies').select('*').eq('id', id).single()
         : await supabase.from('companies').select('*');
@@ -55,12 +59,18 @@ export default async function handler(req, res) {
       const { id } = req.query;
       const { name, city, state, zip, phone, country } = req.body;
 
+      if (!id) {
+        return res.status(400).json({ error: 'Company ID is required.' });
+      }
+
+      // Filter out undefined values from the payload
       const updateData = Object.fromEntries(
         Object.entries({ name, city, state, zip, phone, country }).filter(
           ([_, value]) => value !== undefined
         )
       );
 
+      // Update the company record
       const { data, error } = await supabase
         .from('companies')
         .update(updateData)
@@ -74,9 +84,14 @@ export default async function handler(req, res) {
     } else if (req.method === 'DELETE') {
       const { id } = req.query;
 
-      // Cascade delete from logentrycompanies
+      if (!id) {
+        return res.status(400).json({ error: 'Company ID is required.' });
+      }
+
+      // Cascade delete any associated logentrycompanies
       await supabase.from('logentrycompanies').delete().eq('companyid', id);
 
+      // Delete the company
       const { error } = await supabase.from('companies').delete().eq('id', id);
 
       if (error) throw error;

@@ -1,5 +1,18 @@
 import { supabase } from '../../utils/supabase.js';
 
+// Helper to infer company from private email domains
+function inferCompanyFromEmail(email) {
+  const privateDomains = {
+    'microsoft.com': 'Microsoft',
+    'google.com': 'Google',
+    'netflix.com': 'Netflix',
+    'hulu.com': 'Hulu'
+  };
+
+  const domain = email?.split('@')[1]?.toLowerCase();
+  return privateDomains[domain] || null;
+}
+
 export default async function handler(req, res) {
   try {
     const apiKey = req.headers['authorization'];
@@ -64,6 +77,12 @@ export default async function handler(req, res) {
         lastname = lastname || lastParts.join(' ');
       }
 
+      // Infer company if not provided
+      if (!companyid && !company && email) {
+        company = inferCompanyFromEmail(email);
+      }
+
+      // Attempt to create or retrieve company if inferred
       if (!companyid && company) {
         const { data: existingCompany, error: companyError } = await supabase
           .from('companies')
@@ -85,15 +104,17 @@ export default async function handler(req, res) {
         }
       }
 
-      if (!firstname || !lastname || !email || !companyid) {
+      // Create contact without requiring companyid
+      if (!firstname || !lastname || !email) {
         return res.status(400).json({
-          error: 'firstname, lastname, email, and companyid are required.',
+          error: 'firstname, lastname, and email are required.',
         });
       }
 
-      const { data, error } = await supabase
-        .from('contacts')
-        .insert([{ firstname, lastname, email, companyid }]);
+      const contactData = { firstname, lastname, email };
+      if (companyid) contactData.companyid = companyid;
+
+      const { data, error } = await supabase.from('contacts').insert([contactData]);
 
       if (error) throw error;
       return res.status(201).json({ message: 'Contact created successfully.', data });

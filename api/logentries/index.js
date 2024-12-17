@@ -32,13 +32,6 @@ function inferLogtype(text) {
   return 'Other';
 }
 
-// Function to infer company name from email
-function inferCompanyFromEmail(email) {
-  if (!email || !email.includes('@')) return null;
-  const domain = email.split('@')[1]?.split('.')[0];
-  return domain ? domain.charAt(0).toUpperCase() + domain.slice(1) : null;
-}
-
 // Function to create or get a company
 async function createOrGetCompany(companyName) {
   const { data: existingCompany, error: companyError } = await supabase
@@ -142,16 +135,20 @@ export default async function handler(req, res) {
       logtype = logtype || inferLogtype(finalText);
 
       // Process contacts
-      for (const contact of contacts) {
-        const { fullName, email, companyName } = contact;
-        const contactId = await createOrGetContact(fullName, email, companyName);
-        contactids.push(contactId);
+      if (contacts.length > 0) {
+        for (const contact of contacts) {
+          const { fullName, email, companyName } = contact;
+          const contactId = await createOrGetContact(fullName, email, companyName);
+          contactids.push(contactId);
+        }
       }
 
       // Process companies
-      for (const companyName of companies) {
-        const companyId = await createOrGetCompany(companyName);
-        companyids.push(companyId);
+      if (companies.length > 0) {
+        for (const companyName of companies) {
+          const companyId = await createOrGetCompany(companyName);
+          companyids.push(companyId);
+        }
       }
 
       // Insert main log entry
@@ -164,7 +161,7 @@ export default async function handler(req, res) {
       if (logError) throw logError;
       const logentryid = logEntry.id;
 
-      // Associate contacts
+      // Associate contacts if any
       if (contactids.length > 0) {
         const contactInserts = contactids.map((contactid) => ({
           logentryid,
@@ -173,7 +170,7 @@ export default async function handler(req, res) {
         await supabase.from('logentrycontacts').insert(contactInserts);
       }
 
-      // Associate companies
+      // Associate companies if any
       if (companyids.length > 0) {
         const companyInserts = companyids.map((companyid) => ({
           logentryid,
@@ -183,7 +180,7 @@ export default async function handler(req, res) {
       }
 
       return res.status(201).json({
-        message: 'Log entry created successfully with associated contacts and companies.',
+        message: 'Log entry created successfully.',
         logentryid,
         logtype,
         keywords,
