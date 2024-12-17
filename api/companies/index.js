@@ -10,38 +10,52 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      // Create a new company
       const { name, city, state, zip, phone, country } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: 'Company name is required.' });
       }
 
-      // Clean and filter payload dynamically
+      // Clean up and filter input
       const insertData = Object.fromEntries(
         Object.entries({ name, city, state, zip, phone, country }).filter(
-          ([_, value]) => value !== undefined && value !== null
+          ([_, value]) => value !== undefined
         )
       );
 
-      console.log("Payload being sent to Supabase:", insertData);
-
-      // Insert into Supabase
+      // Insert the company into the database
       const { data, error } = await supabase
         .from('companies')
         .insert([insertData])
-        .select('id, name, city, state, zip, phone, country')
+        .select('*')
         .single();
 
-      if (error) {
-        console.error("Supabase Insert Error:", error.message || error);
-        throw error;
-      }
-
+      if (error) throw error;
       return res.status(201).json({ message: 'Company created successfully.', data });
 
+    } else if (req.method === 'GET') {
+      const { id, includeLogs } = req.query;
+
+      // Include logs if specified
+      if (includeLogs && id) {
+        const { data, error } = await supabase
+          .from('logentrycompanies')
+          .select('logentryid, logentries (id, logtype, text, followup)')
+          .eq('companyid', id);
+
+        if (error) throw error;
+        return res.status(200).json({ message: 'Logs retrieved successfully.', data });
+      }
+
+      // Retrieve all companies or a single company
+      const { data, error } = id
+        ? await supabase.from('companies').select('*').eq('id', id).single()
+        : await supabase.from('companies').select('*');
+
+      if (error) throw error;
+      return res.status(200).json(data);
+
     } else if (req.method === 'PATCH') {
-      // Update a specific company
       const { id } = req.query;
       const { name, city, state, zip, phone, country } = req.body;
 
@@ -49,78 +63,39 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Company ID is required.' });
       }
 
-      if (!name && !city && !state && !zip && !phone && !country) {
-        return res.status(400).json({ error: 'At least one field must be provided for update.' });
-      }
-
+      // Filter out undefined values from the payload
       const updateData = Object.fromEntries(
         Object.entries({ name, city, state, zip, phone, country }).filter(
-          ([_, value]) => value !== undefined && value !== null
+          ([_, value]) => value !== undefined
         )
       );
 
-      console.log("Updating with payload:", updateData);
-
+      // Update the company record
       const { data, error } = await supabase
         .from('companies')
         .update(updateData)
-        .eq('id', id);
+        .eq('id', id)
+        .select('*')
+        .single();
 
-      if (error) {
-        console.error("Supabase Update Error:", error.message || error);
-        throw error;
-      }
-
+      if (error) throw error;
       return res.status(200).json({ message: 'Company updated successfully.', data });
 
-    } else if (req.method === 'GET') {
-      // Retrieve company data
-      const { id } = req.query;
-
-      if (!id) {
-        // Fetch all companies if no ID is provided
-        const { data, error } = await supabase.from('companies').select('*');
-
-        if (error) {
-          console.error("Supabase Fetch All Error:", error.message || error);
-          throw error;
-        }
-
-        return res.status(200).json({ message: 'Companies retrieved successfully.', data });
-      } else {
-        // Fetch specific company
-        const { data, error } = await supabase
-          .from('companies')
-          .select('*')
-          .eq('id', id)
-          .single();
-
-        if (error) {
-          console.error("Supabase Fetch Error:", error.message || error);
-          throw error;
-        }
-
-        return res.status(200).json({ message: 'Company retrieved successfully.', data });
-      }
     } else if (req.method === 'DELETE') {
-      // Delete a specific company
       const { id } = req.query;
 
       if (!id) {
         return res.status(400).json({ error: 'Company ID is required.' });
       }
 
-      const { data, error } = await supabase
-        .from('companies')
-        .delete()
-        .eq('id', id);
+      // Cascade delete any associated logentrycompanies
+      await supabase.from('logentrycompanies').delete().eq('companyid', id);
 
-      if (error) {
-        console.error("Supabase Delete Error:", error.message || error);
-        throw error;
-      }
+      // Delete the company
+      const { error } = await supabase.from('companies').delete().eq('id', id);
 
-      return res.status(200).json({ message: 'Company deleted successfully.', data });
+      if (error) throw error;
+      return res.status(204).end();
 
     } else {
       res.setHeader('Allow', ['POST', 'PATCH', 'GET', 'DELETE']);
@@ -128,6 +103,6 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     console.error('Error in companies handler:', error.message || error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 }

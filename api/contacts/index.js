@@ -1,8 +1,20 @@
 import { supabase } from '../../utils/supabase.js';
 
+// Helper to infer company from private email domains
+function inferCompanyFromEmail(email) {
+  const privateDomains = {
+    'microsoft.com': 'Microsoft',
+    'google.com': 'Google',
+    'netflix.com': 'Netflix',
+    'hulu.com': 'Hulu'
+  };
+
+  const domain = email?.split('@')[1]?.toLowerCase();
+  return privateDomains[domain] || null;
+}
+
 export default async function handler(req, res) {
   try {
-    // API Key Validation
     const apiKey = req.headers['authorization'];
     const validKey = process.env.OPENAI_KEY;
 
@@ -10,11 +22,23 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
     }
 
+    const { id } = req.query;
+
+    // GET Method: Fetch contacts with optional logs
     if (req.method === 'GET') {
-      const { name, company } = req.query;
+      const { name, company, includeLogs } = req.query;
+
+      if (includeLogs && id) {
+        const { data, error } = await supabase
+          .from('logentrycontacts')
+          .select('logentryid, logentries (id, logtype, text, followup)')
+          .eq('contactid', id);
+
+        if (error) throw error;
+        return res.status(200).json({ message: 'Logs retrieved successfully.', data });
+      }
 
       if (company) {
-        // Look up companyid by company name
         const { data: companyData, error: companyError } = await supabase
           .from('companies')
           .select('id')
@@ -23,11 +47,10 @@ export default async function handler(req, res) {
 
         if (companyError || !companyData) {
           return res.status(400).json({
-            error: `Company '${company}' not found. Please provide a valid company name.`,
+            error: `Company '${company}' not found.`,
           });
         }
 
-        // Retrieve contacts for the found companyid
         const { data, error } = await supabase
           .from('contacts')
           .select('*')
@@ -37,34 +60,30 @@ export default async function handler(req, res) {
         return res.status(200).json(data);
       }
 
-      // Default behavior to retrieve all contacts or filter by name
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
-        .ilike('firstname', `%${name || ''}%`); // Filters by name if provided
+        .ilike('firstname', `%${name || ''}%`);
       if (error) throw error;
 
       return res.status(200).json(data);
 
+    // POST Method: Create a contact
     } else if (req.method === 'POST') {
       let { name, firstname, lastname, email, companyid, company } = req.body;
 
-      // Split `name` into `firstname` and `lastname` if not already provided
       if (name && (!firstname || !lastname)) {
         const [first, ...lastParts] = name.split(' ');
         firstname = firstname || first;
-        lastname = lastname || lastParts.join(' '); // Handles multi-part last names
+        lastname = lastname || lastParts.join(' ');
       }
 
-      // Infer company name from email domain if `company` is not provided
-      if (!company && email) {
-        const domain = email.split('@')[1]?.split('.')[0];
-        if (domain) {
-          company = domain.charAt(0).toUpperCase() + domain.slice(1); // Capitalize inferred company name
-        }
+      // Infer company if not provided
+      if (!companyid && !company && email) {
+        company = inferCompanyFromEmail(email);
       }
 
-      // Check if company exists, and create it if not
+      // Attempt to create or retrieve company if inferred
       if (!companyid && company) {
         const { data: existingCompany, error: companyError } = await supabase
           .from('companies')
@@ -72,56 +91,104 @@ export default async function handler(req, res) {
           .eq('name', company)
           .single();
 
-        if (companyError && companyError.code !== 'PGRST116') {
-          // Log unexpected errors while querying companies
-          console.error('Error checking company:', companyError);
-          return res.status(500).json({ error: 'Internal Server Error' });
-        }
-
         if (existingCompany) {
           companyid = existingCompany.id;
         } else {
-          // Create the company if it doesn't exist
           const { data: newCompany, error: createError } = await supabase
             .from('companies')
             .insert([{ name: company }])
             .select('id')
             .single();
 
-          if (createError) {
-            console.error('Error creating company:', createError);
-            return res.status(500).json({ error: 'Internal Server Error' });
-          }
-
+          if (createError) throw createError;
           companyid = newCompany.id;
         }
       }
 
-      // Ensure all required fields are present
-      if (!firstname || !lastname || !email || !companyid) {
+      // Create contact without requiring companyid
+      if (!firstname || !lastname || !email) {
         return res.status(400).json({
-          error: 'firstname, lastname, email, and companyid are required.',
+          error: 'firstname, lastname, and email are required.',
         });
       }
 
-      // Insert the contact into the database
-      const { data, error } = await supabase
-        .from('contacts')
-        .insert([{ firstname, lastname, email, companyid }]);
+      const contactData = { firstname, lastname, email };
+      if (companyid) contactData.companyid = companyid;
 
-      if (error) {
-        console.error('Error inserting contact:', error);
-        return res.status(500).json({ error: 'Internal Server Error' });
-      }
+      const { data, error } = await supabase.from('contacts').insert([contactData]);
 
+      if (error) throw error;
       return res.status(201).json({ message: 'Contact created successfully.', data });
 
+    // PATCH Method: Update a contact
+    } else if (req.method === 'PATCH') {
+      if (!id) {
+        return res.status(400).json({ error: 'Contact ID is required.' });
+      }
+
+      const { firstname, lastname, email, phone, companyid } = req.body;
+
+      const updateData = Object.fromEntries(
+        Object.entries({ firstname, lastname, email, phone, companyid }).filter(
+          ([_, value]) => value !== undefined
+        )
+      );
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .update(updateData)
+        .eq('id', id)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return res.status(200).json({ message: 'Contact updated successfully.', data });
+
+    // DELETE Method: Delete a contact by ID or name
+    } else if (req.method === 'DELETE') {
+      const { id, name } = req.query;
+
+      if (!id && !name) {
+        return res.status(400).json({ error: 'Contact ID or name is required for deletion.' });
+      }
+
+      let contactIdToDelete = id;
+
+      // If name is provided, find the contact ID
+      if (name && !id) {
+        const [firstName, ...lastNameParts] = name.split(' ');
+        const lastName = lastNameParts.join(' ');
+
+        const { data: contactData, error: searchError } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('firstname', firstName)
+          .eq('lastname', lastName)
+          .single();
+
+        if (searchError || !contactData) {
+          return res.status(404).json({ error: `Contact '${name}' not found.` });
+        }
+
+        contactIdToDelete = contactData.id;
+      }
+
+      // Cascade delete from logentrycontacts
+      await supabase.from('logentrycontacts').delete().eq('contactid', contactIdToDelete);
+
+      // Delete the contact
+      const { error } = await supabase.from('contacts').delete().eq('id', contactIdToDelete);
+
+      if (error) throw error;
+
+      return res.status(204).end();
+
     } else {
-      res.setHeader('Allow', ['GET', 'POST']);
+      res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
-    console.error('Error in contacts handler:', error);
+    console.error('Error in contacts handler:', error.message || error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
