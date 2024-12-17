@@ -64,22 +64,24 @@ export default async function handler(req, res) {
 
     // DELETE: Bulk remove log entries
     else if (req.method === 'DELETE') {
-      const { ids } = req.body; // Accept an array of IDs
-
+      const { ids } = req.body; // Accept an array of IDs in the body
+    
+      // Validate input
       if (!Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'An array of log entry IDs is required for deletion.' });
       }
-
+    
+      // Perform bulk deletion using Supabase's `in` method
       const { error } = await supabase
         .from('logentries')
         .delete()
         .in('id', ids);
-
+    
       if (error) {
         console.error('Error deleting log entries:', error.message);
-        throw new Error('Failed to delete log entries.');
+        return res.status(500).json({ error: 'Failed to delete log entries.' });
       }
-
+    
       return res.status(200).json({ message: 'Log entries deleted successfully.' });
     }
 
