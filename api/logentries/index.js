@@ -1,4 +1,6 @@
 import { supabase } from '../../utils/supabase.js';
+import { extractAndValidateCompanies, createCompanyIfMissing } from './validateCompanies.js';
+
 console.log('ENV OPENAI_KEY:', process.env.OPENAI_KEY);
 
 // Helper function for API key validation
@@ -48,35 +50,6 @@ function inferLogtype(text) {
   return 'Other';
 }
 
-// Function to create or get a company
-async function createOrGetCompany(companyName) {
-  const { data: existingCompany, error: companyError } = await supabase
-    .from('companies')
-    .select('id')
-    .eq('name', companyName)
-    .single();
-
-  if (companyError && companyError.code !== 'PGRST116') {
-    console.error('Error checking company:', companyError.message);
-    throw new Error('Error retrieving company information.');
-  }
-
-  if (existingCompany) return existingCompany.id;
-
-  const { data: newCompany, error: createError } = await supabase
-    .from('companies')
-    .insert([{ name: companyName }])
-    .select('id')
-    .single();
-
-  if (createError) {
-    console.error('Error creating company:', createError.message);
-    throw new Error('Error creating company.');
-  }
-
-  return newCompany.id;
-}
-
 // Function to create or get a contact
 async function createOrGetContact(fullName, email, companyName) {
   const [firstName, ...lastNameParts] = fullName.split(' ');
@@ -100,7 +73,7 @@ async function createOrGetContact(fullName, email, companyName) {
 
   if (existingContact) return existingContact.id;
 
-  const companyId = companyName ? await createOrGetCompany(companyName) : null;
+  const companyId = companyName ? await createCompanyIfMissing(companyName) : null;
 
   const { data: newContact, error: createError } = await supabase
     .from('contacts')
@@ -141,42 +114,14 @@ export default async function handler(req, res) {
 
     // POST: Create a log entry
     else if (req.method === 'POST') {
-      let { logtype, keywords, followup = false, description, text, contactids = [], companyids = [], contacts = [], companies = [] } = req.body;
+      let { logtype, keywords, followup = false, text, contactids = [], companyids = [] } = req.body;
 
-// Validate keywords
-try {
-  keywords = validateKeywords(keywords);
-} catch (validationError) {
-  return res.status(400).json({ error: validationError.message });
-}
-      const finalText = text || description;
-      if (!finalText) {
-        return res.status(400).json({ error: 'The text field is required.' });
-      }
+      keywords = validateKeywords(keywords);
+      if (!text) return res.status(400).json({ error: 'The text field is required.' });
 
-      logtype = logtype || inferLogtype(finalText);
-
-      // Process contacts
-      if (contacts.length > 0) {
-        for (const contact of contacts) {
-          const { fullName, email, companyName } = contact;
-          const contactId = await createOrGetContact(fullName, email, companyName);
-          contactids.push(contactId);
-        }
-      }
-
-      // Process companies
-      if (companies.length > 0) {
-        for (const companyName of companies) {
-          const companyId = await createOrGetCompany(companyName);
-          companyids.push(companyId);
-        }
-      }
-
-      // Insert main log entry
       const { data: logEntry, error: logError } = await supabase
         .from('logentries')
-        .insert([{ logtype, keywords, text: finalText, followup }])
+        .insert([{ logtype, keywords, text, followup }])
         .select('id')
         .single();
 
@@ -184,7 +129,6 @@ try {
 
       const logentryid = logEntry.id;
 
-      // Associate contacts if any
       if (contactids.length > 0) {
         const contactInserts = contactids.map((contactid) => ({
           logentryid,
@@ -193,7 +137,6 @@ try {
         await supabase.from('logentrycontacts').insert(contactInserts);
       }
 
-      // Associate companies if any
       if (companyids.length > 0) {
         const companyInserts = companyids.map((companyid) => ({
           logentryid,
@@ -205,40 +148,63 @@ try {
       return res.status(201).json({
         message: 'Log entry created successfully.',
         logentryid,
-        logtype,
-        keywords,
       });
     }
 
- // DELETE: Remove a log entry
-else if (req.method === 'DELETE') {
-  const { id } = req.query;
+    // PATCH: Update a log entry
+    else if (req.method === 'PATCH') {
+      const { id } = req.query;
+      if (!id) return res.status(400).json({ error: 'Log entry ID is required for updates.' });
 
-  // Ensure ID is provided and not in array format
-  if (!id) {
-    return res.status(400).json({ error: 'Log entry ID is required for deletion.' });
-  }
+      const { logtype, keywords, followup, text, contactids, companyids } = req.body;
 
-  // Check if 'id' is an array or a single value, ensure it's treated as a single ID
-  const idValue = Array.isArray(id) ? id[0] : id;
+      const updateFields = {};
+      if (logtype) updateFields.logtype = logtype;
+      if (keywords) updateFields.keywords = validateKeywords(keywords);
+      if (followup !== undefined) updateFields.followup = followup;
+      if (text) updateFields.text = text;
 
-  // Delete related foreign key entries first (contacts and companies)
-  await supabase.from('logentrycontacts').delete().eq('logentryid', idValue);
-  await supabase.from('logentrycompanies').delete().eq('logentryid', idValue);
+      const { error: updateError } = await supabase
+        .from('logentries')
+        .update(updateFields)
+        .eq('id', id);
 
-  // Delete the main log entry
-  const { error } = await supabase.from('logentries').delete().eq('id', idValue);
+      if (updateError) throw updateError;
 
-  if (error) {
-    console.error('Error deleting log entry:', error.message);
-    return res.status(500).json({ error: 'Failed to delete log entry.' });
-  }
+      if (contactids) {
+        await supabase.from('logentrycontacts').delete().eq('logentryid', id);
+        const contactInserts = contactids.map((contactid) => ({
+          logentryid: id,
+          contactid,
+        }));
+        await supabase.from('logentrycontacts').insert(contactInserts);
+      }
 
-  return res.status(200).json({ message: `Log entry ${idValue} deleted successfully.` });
-}
-    // Method not allowed
+      if (companyids) {
+        await supabase.from('logentrycompanies').delete().eq('logentryid', id);
+        const companyInserts = companyids.map((companyid) => ({
+          logentryid: id,
+          companyid,
+        }));
+        await supabase.from('logentrycompanies').insert(companyInserts);
+      }
+
+      return res.status(200).json({ message: `Log entry ${id} updated successfully.` });
+    }
+
+    else if (req.method === 'DELETE') {
+      const { id } = req.query;
+      if (!id) return res.status(400).json({ error: 'Log entry ID is required for deletion.' });
+
+      await supabase.from('logentrycontacts').delete().eq('logentryid', id);
+      await supabase.from('logentrycompanies').delete().eq('logentryid', id);
+      await supabase.from('logentries').delete().eq('id', id);
+
+      return res.status(200).json({ message: `Log entry ${id} deleted successfully.` });
+    }
+
     else {
-      res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+      res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
