@@ -107,28 +107,29 @@ export default async function handler(req, res) {
     // GET: Fetch log entries
     if (req.method === 'GET') {
       const { id } = req.query;
-
+    
       let query = supabase
         .from('logentries')
         .select(
           `
           id, logtype, keywords, text, followup,
-          logentrycontacts:logentrycontacts ( 
-            contactid, contacts ( firstname, lastname, email )
+          logentrycontacts:logentrycontacts!inner ( 
+            contactid, contacts!inner ( firstname, lastname, email )
           ),
-          logentrycompanies:logentrycompanies ( 
-            companyid, companies ( name, city, state, zip )
+          logentrycompanies:logentrycompanies!inner ( 
+            companyid, companies!inner ( name, city, state, zip )
           )
           `
         );
-
+    
       if (id) query = query.eq('id', id);
-
+    
       const { data, error } = await query;
       if (error) throw error;
-
+    
       return res.status(200).json(data);
     }
+    
 
     // POST: Create a log entry
     else if (req.method === 'POST') {
