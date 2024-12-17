@@ -190,9 +190,30 @@ export default async function handler(req, res) {
       });
     }
 
+    // DELETE: Remove a log entry
+    else if (req.method === 'DELETE') {
+      const { id } = req.query;
+
+      if (!id) {
+        return res.status(400).json({ error: 'Log entry ID is required for deletion.' });
+      }
+
+      const { error } = await supabase
+        .from('logentries')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting log entry:', error.message);
+        throw new Error('Failed to delete log entry.');
+      }
+
+      return res.status(200).json({ message: 'Log entry deleted successfully.' });
+    }
+
     // Method not allowed
     else {
-      res.setHeader('Allow', ['GET', 'POST']);
+      res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
