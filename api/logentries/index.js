@@ -1,4 +1,6 @@
 import { supabase } from '../../utils/supabase.js';
+console.log('ENV OPENAI_KEY:', process.env.OPENAI_KEY);
+
 
 // Helper function for API key validation
 function validateApiKey(req) {
