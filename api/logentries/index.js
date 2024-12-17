@@ -10,6 +10,20 @@ function validateApiKey(req) {
   }
 }
 
+// Validate keywords
+function validateKeywords(keywords) {
+  if (!keywords || !Array.isArray(keywords)) return [];
+
+  const invalidKeywords = keywords.filter((kw) => kw.includes(" "));
+  if (invalidKeywords.length > 0) {
+    throw new Error(
+      `Keywords must be single words. Invalid keywords: ${invalidKeywords.join(", ")}`
+    );
+  }
+
+  return keywords;
+}
+
 // Function to extract keywords from text (excluding names/companies)
 function extractKeywords(text, contacts = [], companies = []) {
   const words = text
@@ -146,6 +160,12 @@ export default async function handler(req, res) {
     } else if (req.method === 'POST') {
       let { logtype, keywords, followup = false, description, text, contactids = [], companyids = [], contacts = [] } = req.body;
 
+// Validate keywords
+try {
+  keywords = validateKeywords(keywords);
+} catch (validationError) {
+  return res.status(400).json({ error: validationError.message });
+}
       const finalText = text || description;
       if (!finalText) {
         return res.status(400).json({ error: 'The text field is required.' });
