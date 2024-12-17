@@ -12,7 +12,18 @@ export default async function handler(req, res) {
     const { id } = req.query;
 
     if (req.method === 'GET') {
-      const { name, company } = req.query;
+      const { name, company, includeLogs } = req.query;
+
+      if (includeLogs && id) {
+        // Fetch logs linked to a specific contact
+        const { data, error } = await supabase
+          .from('logentrycontacts')
+          .select('logentryid, logentries (id, logtype, text, followup)')
+          .eq('contactid', id);
+
+        if (error) throw error;
+        return res.status(200).json({ message: 'Logs retrieved successfully.', data });
+      }
 
       if (company) {
         const { data: companyData, error: companyError } = await supabase
@@ -51,13 +62,6 @@ export default async function handler(req, res) {
         const [first, ...lastParts] = name.split(' ');
         firstname = firstname || first;
         lastname = lastname || lastParts.join(' ');
-      }
-
-      if (!company && email) {
-        const domain = email.split('@')[1]?.split('.')[0];
-        if (domain) {
-          company = domain.charAt(0).toUpperCase() + domain.slice(1);
-        }
       }
 
       if (!companyid && company) {
@@ -101,12 +105,6 @@ export default async function handler(req, res) {
 
       const { firstname, lastname, email, phone, companyid } = req.body;
 
-      if (!firstname && !lastname && !email && !phone && !companyid) {
-        return res
-          .status(400)
-          .json({ error: 'At least one field must be provided for update.' });
-      }
-
       const updateData = Object.fromEntries(
         Object.entries({ firstname, lastname, email, phone, companyid }).filter(
           ([_, value]) => value !== undefined
@@ -128,11 +126,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Contact ID is required.' });
       }
 
+      // Cascade delete from logentrycontacts
+      await supabase.from('logentrycontacts').delete().eq('contactid', id);
+
       const { error } = await supabase.from('contacts').delete().eq('id', id);
 
       if (error) throw error;
-
-      return res.status(204).end(); // No content on successful delete
+      return res.status(204).end();
 
     } else {
       res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
