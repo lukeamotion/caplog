@@ -190,27 +190,32 @@ export default async function handler(req, res) {
       });
     }
 
-    // DELETE: Remove a log entry
-    else if (req.method === 'DELETE') {
-      const { id } = req.query;
+ // DELETE: Remove a log entry
+else if (req.method === 'DELETE') {
+  const { id } = req.query;
 
-      if (!id) {
-        return res.status(400).json({ error: 'Log entry ID is required for deletion.' });
-      }
+  // Ensure ID is provided and not in array format
+  if (!id) {
+    return res.status(400).json({ error: 'Log entry ID is required for deletion.' });
+  }
 
-      const { error } = await supabase
-        .from('logentries')
-        .delete()
-        .eq('id', id);
+  // Check if 'id' is an array or a single value, ensure it's treated as a single ID
+  const idValue = Array.isArray(id) ? id[0] : id;
 
-      if (error) {
-        console.error('Error deleting log entry:', error.message);
-        throw new Error('Failed to delete log entry.');
-      }
+  // Delete related foreign key entries first (contacts and companies)
+  await supabase.from('logentrycontacts').delete().eq('logentryid', idValue);
+  await supabase.from('logentrycompanies').delete().eq('logentryid', idValue);
 
-      return res.status(200).json({ message: 'Log entry deleted successfully.' });
-    }
+  // Delete the main log entry
+  const { error } = await supabase.from('logentries').delete().eq('id', idValue);
 
+  if (error) {
+    console.error('Error deleting log entry:', error.message);
+    return res.status(500).json({ error: 'Failed to delete log entry.' });
+  }
+
+  return res.status(200).json({ message: `Log entry ${idValue} deleted successfully.` });
+}
     // Method not allowed
     else {
       res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
