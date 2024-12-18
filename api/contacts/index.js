@@ -6,7 +6,7 @@ function inferCompanyFromEmail(email) {
     'microsoft.com': 'Microsoft',
     'google.com': 'Google',
     'netflix.com': 'Netflix',
-    'hulu.com': 'Hulu'
+    'hulu.com': 'Hulu',
   };
 
   const domain = email?.split('@')[1]?.toLowerCase();
@@ -29,12 +29,14 @@ export default async function handler(req, res) {
       const { name, company, includeLogs } = req.query;
 
       if (includeLogs && id) {
+        // Fetch log entries linked via the relationships table
         const { data, error } = await supabase
-          .from('logentrycontacts')
-          .select('logentryid, logentries (id, logtype, text, followup)')
-          .eq('contactid', id);
+          .from('relationships')
+          .select('logentry_id, logentries (id, logtype, text, followup)')
+          .eq('contact_id', id);
 
         if (error) throw error;
+
         return res.status(200).json({ message: 'Logs retrieved successfully.', data });
       }
 
@@ -57,6 +59,7 @@ export default async function handler(req, res) {
           .eq('companyid', companyData.id);
 
         if (error) throw error;
+
         return res.status(200).json(data);
       }
 
@@ -64,12 +67,14 @@ export default async function handler(req, res) {
         .from('contacts')
         .select('*')
         .ilike('firstname', `%${name || ''}%`);
+
       if (error) throw error;
 
       return res.status(200).json(data);
+    }
 
     // POST Method: Create a contact
-    } else if (req.method === 'POST') {
+    else if (req.method === 'POST') {
       let { name, firstname, lastname, email, companyid, company } = req.body;
 
       if (name && (!firstname || !lastname)) {
@@ -118,10 +123,12 @@ export default async function handler(req, res) {
       const { data, error } = await supabase.from('contacts').insert([contactData]);
 
       if (error) throw error;
+
       return res.status(201).json({ message: 'Contact created successfully.', data });
+    }
 
     // PATCH Method: Update a contact
-    } else if (req.method === 'PATCH') {
+    else if (req.method === 'PATCH') {
       if (!id) {
         return res.status(400).json({ error: 'Contact ID is required.' });
       }
@@ -142,10 +149,12 @@ export default async function handler(req, res) {
         .single();
 
       if (error) throw error;
+
       return res.status(200).json({ message: 'Contact updated successfully.', data });
+    }
 
     // DELETE Method: Delete a contact by ID or name
-    } else if (req.method === 'DELETE') {
+    else if (req.method === 'DELETE') {
       const { id, name } = req.query;
 
       if (!id && !name) {
@@ -173,8 +182,8 @@ export default async function handler(req, res) {
         contactIdToDelete = contactData.id;
       }
 
-      // Cascade delete from logentrycontacts
-      await supabase.from('logentrycontacts').delete().eq('contactid', contactIdToDelete);
+      // Cascade delete from relationships table
+      await supabase.from('relationships').delete().eq('contact_id', contactIdToDelete);
 
       // Delete the contact
       const { error } = await supabase.from('contacts').delete().eq('id', contactIdToDelete);
@@ -182,7 +191,6 @@ export default async function handler(req, res) {
       if (error) throw error;
 
       return res.status(204).end();
-
     } else {
       res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
