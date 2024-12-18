@@ -1,9 +1,17 @@
 import { supabase } from '../../utils/supabase.js';
 
-// Helper to sanitize phone numbers
+// Helper to sanitize phone numbers to `XXX.XXX.XXXX` format
 function sanitizePhone(phone) {
-  // Allow only digits, spaces, +, -, and parentheses
-  return phone?.replace(/[^0-9+\-\(\) ]/g, '').trim();
+  // Remove all non-digit characters
+  const digits = phone?.replace(/\D/g, '');
+
+  // Format to `XXX.XXX.XXXX` if exactly 10 digits
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  }
+
+  // If the format cannot be applied, throw an error
+  throw new Error('Invalid phone number format. Expected: XXX.XXX.XXXX');
 }
 
 export default async function handler(req, res) {
@@ -23,6 +31,14 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Company name is required.' });
       }
 
+      // Sanitize and validate the phone number
+      let sanitizedPhone;
+      try {
+        sanitizedPhone = sanitizePhone(phone);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+
       // Clean up and filter input
       const insertData = Object.fromEntries(
         Object.entries({ 
@@ -30,7 +46,7 @@ export default async function handler(req, res) {
           city, 
           state, 
           zip, 
-          phone: sanitizePhone(phone), // Sanitize phone number
+          phone: sanitizedPhone, // Use the sanitized phone number
           country 
         }).filter(([_, value]) => value !== undefined)
       );
@@ -82,6 +98,14 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Company ID is required.' });
       }
 
+      // Sanitize and validate the phone number
+      let sanitizedPhone;
+      try {
+        sanitizedPhone = sanitizePhone(phone);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+
       // Filter out undefined values from the payload
       const updateData = Object.fromEntries(
         Object.entries({ 
@@ -89,7 +113,7 @@ export default async function handler(req, res) {
           city, 
           state, 
           zip, 
-          phone: sanitizePhone(phone), // Sanitize phone number
+          phone: sanitizedPhone, // Use the sanitized phone number
           country 
         }).filter(([_, value]) => value !== undefined)
       );
