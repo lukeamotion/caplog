@@ -13,6 +13,44 @@ function inferCompanyFromEmail(email) {
   return privateDomains[domain] || null;
 }
 
+// Helper to sanitize phone numbers to `XXX.XXX.XXXX` format
+function sanitizePhone(phone) {
+  const digits = phone?.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  }
+  throw new Error('Invalid phone number format. Expected: XXX.XXX.XXXX');
+}
+
+// Ensure companyid exists or create a new company
+async function ensureCompanyExists(companyid, companyName) {
+  if (!companyid && !companyName) return null;
+
+  if (companyid) {
+    const { data: existingCompany, error } = await supabase
+      .from('companies')
+      .select('id')
+      .eq('id', companyid)
+      .single();
+
+    if (!error && existingCompany) return companyid;
+  }
+
+  if (companyName) {
+    const { data: newCompany, error: createError } = await supabase
+      .from('companies')
+      .insert([{ name: companyName }])
+      .select('id')
+      .single();
+
+    if (createError) throw createError;
+
+    return newCompany.id;
+  }
+
+  throw new Error('Invalid companyid and no company name provided.');
+}
+
 export default async function handler(req, res) {
   try {
     const apiKey = req.headers['authorization'];
@@ -29,7 +67,6 @@ export default async function handler(req, res) {
       const { name, company, includeLogs } = req.query;
 
       if (includeLogs && id) {
-        // Fetch log entries linked via the relationships table
         const { data, error } = await supabase
           .from('relationships')
           .select('logentry_id, logentries (id, logtype, text, followup)')
@@ -75,7 +112,7 @@ export default async function handler(req, res) {
 
     // POST Method: Create a contact
     else if (req.method === 'POST') {
-      let { name, firstname, lastname, email, companyid, company } = req.body;
+      let { name, firstname, lastname, email, phone, companyid, company } = req.body;
 
       if (name && (!firstname || !lastname)) {
         const [first, ...lastParts] = name.split(' ');
@@ -83,43 +120,29 @@ export default async function handler(req, res) {
         lastname = lastname || lastParts.join(' ');
       }
 
-      // Infer company if not provided
-      if (!companyid && !company && email) {
-        company = inferCompanyFromEmail(email);
-      }
-
-      // Attempt to create or retrieve company if inferred
-      if (!companyid && company) {
-        const { data: existingCompany, error: companyError } = await supabase
-          .from('companies')
-          .select('id')
-          .eq('name', company)
-          .single();
-
-        if (existingCompany) {
-          companyid = existingCompany.id;
-        } else {
-          const { data: newCompany, error: createError } = await supabase
-            .from('companies')
-            .insert([{ name: company }])
-            .select('id')
-            .single();
-
-          if (createError) throw createError;
-          companyid = newCompany.id;
-        }
-      }
-
-      // Create contact without requiring companyid
       if (!firstname || !lastname || !email) {
         return res.status(400).json({
           error: 'firstname, lastname, and email are required.',
         });
       }
 
-      const contactData = { firstname, lastname, email };
-      if (companyid) contactData.companyid = companyid;
+      // Ensure the company exists or create it if missing
+      try {
+        companyid = await ensureCompanyExists(companyid, company);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
 
+      // Sanitize phone number
+      let sanitizedPhone;
+      try {
+        sanitizedPhone = sanitizePhone(phone);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      // Create contact
+      const contactData = { firstname, lastname, email, phone: sanitizedPhone, companyid };
       const { data, error } = await supabase.from('contacts').insert([contactData]);
 
       if (error) throw error;
@@ -135,8 +158,17 @@ export default async function handler(req, res) {
 
       const { firstname, lastname, email, phone, companyid } = req.body;
 
+      let sanitizedPhone;
+      if (phone) {
+        try {
+          sanitizedPhone = sanitizePhone(phone);
+        } catch (error) {
+          return res.status(400).json({ error: error.message });
+        }
+      }
+
       const updateData = Object.fromEntries(
-        Object.entries({ firstname, lastname, email, phone, companyid }).filter(
+        Object.entries({ firstname, lastname, email, phone: sanitizedPhone, companyid }).filter(
           ([_, value]) => value !== undefined
         )
       );
