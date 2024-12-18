@@ -1,6 +1,7 @@
 import { supabase } from '../../utils/supabase.js';
 
-// Helper to validate keywords
+// SECTION 1: Helper Functions
+// 1.1 Validate Keywords
 function validateKeywords(keywords, excludedWords = []) {
   if (!keywords || !Array.isArray(keywords)) return [];
 
@@ -16,11 +17,11 @@ function validateKeywords(keywords, excludedWords = []) {
   return keywords.filter((kw) => !lowerExcluded.includes(kw.toLowerCase()));
 }
 
-// Helper to extract excluded words (e.g., names, company names)
+// 1.2 Get Excluded Words
 async function getExcludedWords(contactIds = [], companyIds = []) {
   const excludedWords = [];
 
-  // Fetch contact names
+  // 1.2a Fetch contact names
   if (contactIds.length > 0) {
     const { data: contacts, error: contactError } = await supabase
       .from('contacts')
@@ -34,7 +35,7 @@ async function getExcludedWords(contactIds = [], companyIds = []) {
     });
   }
 
-  // Fetch company names
+  // 1.2b Fetch company names
   if (companyIds.length > 0) {
     const { data: companies, error: companyError } = await supabase
       .from('companies')
@@ -50,15 +51,39 @@ async function getExcludedWords(contactIds = [], companyIds = []) {
   return excludedWords;
 }
 
+// 1.3 Validate Contact IDs
+async function validateContactIds(contactIds) {
+  if (!contactIds || contactIds.length === 0) return;
+
+  const { data: validContacts, error } = await supabase
+    .from('contacts')
+    .select('id')
+    .in('id', contactIds);
+
+  if (error) {
+    throw new Error('Error validating contact IDs.');
+  }
+
+  const validIds = validContacts.map((contact) => contact.id);
+  const invalidIds = contactIds.filter((id) => !validIds.includes(id));
+
+  if (invalidIds.length > 0) {
+    throw new Error(`Invalid contact IDs: ${invalidIds.join(', ')}`);
+  }
+}
+
+// SECTION 2: API Handler
 export default async function handler(req, res) {
   try {
     const apiKey = req.headers['authorization'];
     const validKey = process.env.OPENAI_KEY;
 
+    // 2.1 Validate API Key
     if (apiKey !== `Bearer ${validKey}`) {
       return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
     }
 
+    // 2.2 Handle GET Requests
     if (req.method === 'GET') {
       const { id } = req.query;
 
@@ -77,7 +102,7 @@ export default async function handler(req, res) {
       return res.status(200).json(data);
     }
 
-    // POST: Create a log entry
+    // 2.3 Handle POST Requests
     else if (req.method === 'POST') {
       let {
         logtype,
@@ -92,17 +117,24 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'The text field is required.' });
       }
 
-      // Extract excluded words from contacts and companies
+      // 2.3a Validate Contact IDs
+      try {
+        await validateContactIds(contactids);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      // 2.3b Get Excluded Words for Keywords
       const excludedWords = await getExcludedWords(contactids, companyids);
 
-      // Validate and clean keywords
+      // 2.3c Validate and Clean Keywords
       try {
         keywords = validateKeywords(keywords, excludedWords);
       } catch (error) {
         return res.status(400).json({ error: error.message });
       }
 
-      // Step 1: Insert the log entry
+      // 2.3d Insert Log Entry
       const { data: logEntry, error: logError } = await supabase
         .from('logentries')
         .insert([{ logtype, keywords, text, followup }])
@@ -113,7 +145,7 @@ export default async function handler(req, res) {
 
       const logentry_id = logEntry.id;
 
-      // Step 2: Insert relationships
+      // 2.3e Insert Relationships
       const relationshipInserts = [
         ...contactids.map((contact_id) => ({ logentry_id, contact_id })),
         ...companyids.map((company_id) => ({ logentry_id, company_id })),
@@ -127,7 +159,7 @@ export default async function handler(req, res) {
       return res.status(201).json({ message: 'Log entry created successfully.', logentry_id });
     }
 
-    // PATCH: Update a log entry
+    // 2.4 Handle PATCH Requests
     else if (req.method === 'PATCH') {
       const { id } = req.query;
       if (!id) {
@@ -136,20 +168,32 @@ export default async function handler(req, res) {
 
       const { logtype, keywords, followup, text, contactids, companyids } = req.body;
 
+      // 2.4a Validate Contact IDs
+      if (contactids) {
+        try {
+          await validateContactIds(contactids);
+        } catch (error) {
+          return res.status(400).json({ error: error.message });
+        }
+      }
+
+      // 2.4b Get Excluded Words for Keywords
+      const excludedWords = await getExcludedWords(contactids || [], companyids || []);
+
+      // 2.4c Validate and Clean Keywords
       const updateFields = {};
-      if (logtype) updateFields.logtype = logtype;
       if (keywords) {
-        const excludedWords = await getExcludedWords(contactids, companyids);
         try {
           updateFields.keywords = validateKeywords(keywords, excludedWords);
         } catch (error) {
           return res.status(400).json({ error: error.message });
         }
       }
+      if (logtype) updateFields.logtype = logtype;
       if (followup !== undefined) updateFields.followup = followup;
       if (text) updateFields.text = text;
 
-      // Step 1: Update logentry fields
+      // 2.4d Update Log Entry
       const { error: updateError } = await supabase
         .from('logentries')
         .update(updateFields)
@@ -157,7 +201,7 @@ export default async function handler(req, res) {
 
       if (updateError) throw updateError;
 
-      // Step 2: Update relationships
+      // 2.4e Update Relationships
       await supabase.from('relationships').delete().eq('logentry_id', id);
 
       const relationshipInserts = [
@@ -173,20 +217,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: `Log entry ${id} updated successfully.` });
     }
 
-    // DELETE: Remove log entry and relationships
+    // 2.5 Handle DELETE Requests
     else if (req.method === 'DELETE') {
       const { id } = req.query;
       if (!id) {
         return res.status(400).json({ error: 'Log entry ID is required for deletion.' });
       }
 
+      // Delete relationships and log entry
       await supabase.from('relationships').delete().eq('logentry_id', id);
       await supabase.from('logentries').delete().eq('id', id);
 
       return res.status(200).json({ message: `Log entry ${id} deleted successfully.` });
     }
 
-    // Method Not Allowed
+    // 2.6 Handle Unsupported Methods
     else {
       res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
