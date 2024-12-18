@@ -9,6 +9,7 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
     }
 
+    // POST: Create a company
     if (req.method === 'POST') {
       const { name, city, state, zip, phone, country } = req.body;
 
@@ -32,18 +33,21 @@ export default async function handler(req, res) {
 
       if (error) throw error;
       return res.status(201).json({ message: 'Company created successfully.', data });
+    }
 
-    } else if (req.method === 'GET') {
+    // GET: Fetch companies and optionally include associated logs
+    else if (req.method === 'GET') {
       const { id, includeLogs } = req.query;
 
-      // Include logs if specified
+      // Fetch logs associated with the company via the relationships table
       if (includeLogs && id) {
         const { data, error } = await supabase
-          .from('logentrycompanies')
-          .select('logentryid, logentries (id, logtype, text, followup)')
-          .eq('companyid', id);
+          .from('relationships')
+          .select('logentry_id, logentries (id, logtype, text, followup)')
+          .eq('company_id', id);
 
         if (error) throw error;
+
         return res.status(200).json({ message: 'Logs retrieved successfully.', data });
       }
 
@@ -53,9 +57,12 @@ export default async function handler(req, res) {
         : await supabase.from('companies').select('*');
 
       if (error) throw error;
-      return res.status(200).json(data);
 
-    } else if (req.method === 'PATCH') {
+      return res.status(200).json(data);
+    }
+
+    // PATCH: Update a company
+    else if (req.method === 'PATCH') {
       const { id } = req.query;
       const { name, city, state, zip, phone, country } = req.body;
 
@@ -79,25 +86,31 @@ export default async function handler(req, res) {
         .single();
 
       if (error) throw error;
-      return res.status(200).json({ message: 'Company updated successfully.', data });
 
-    } else if (req.method === 'DELETE') {
+      return res.status(200).json({ message: 'Company updated successfully.', data });
+    }
+
+    // DELETE: Remove a company and cascade delete relationships
+    else if (req.method === 'DELETE') {
       const { id } = req.query;
 
       if (!id) {
         return res.status(400).json({ error: 'Company ID is required.' });
       }
 
-      // Cascade delete any associated logentrycompanies
-      await supabase.from('logentrycompanies').delete().eq('companyid', id);
+      // Cascade delete any associated rows in the relationships table
+      await supabase.from('relationships').delete().eq('company_id', id);
 
       // Delete the company
       const { error } = await supabase.from('companies').delete().eq('id', id);
 
       if (error) throw error;
-      return res.status(204).end();
 
-    } else {
+      return res.status(204).end();
+    }
+
+    // Method Not Allowed
+    else {
       res.setHeader('Allow', ['POST', 'PATCH', 'GET', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
