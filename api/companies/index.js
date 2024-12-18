@@ -1,5 +1,11 @@
 import { supabase } from '../../utils/supabase.js';
 
+// Helper to sanitize phone numbers
+function sanitizePhone(phone) {
+  // Allow only digits, spaces, +, -, and parentheses
+  return phone?.replace(/[^0-9+\-\(\) ]/g, '').trim();
+}
+
 export default async function handler(req, res) {
   try {
     const apiKey = req.headers['authorization'];
@@ -19,9 +25,14 @@ export default async function handler(req, res) {
 
       // Clean up and filter input
       const insertData = Object.fromEntries(
-        Object.entries({ name, city, state, zip, phone, country }).filter(
-          ([_, value]) => value !== undefined
-        )
+        Object.entries({ 
+          name, 
+          city, 
+          state, 
+          zip, 
+          phone: sanitizePhone(phone), // Sanitize phone number
+          country 
+        }).filter(([_, value]) => value !== undefined)
       );
 
       // Insert the company into the database
@@ -32,6 +43,7 @@ export default async function handler(req, res) {
         .single();
 
       if (error) throw error;
+
       return res.status(201).json({ message: 'Company created successfully.', data });
     }
 
@@ -72,9 +84,14 @@ export default async function handler(req, res) {
 
       // Filter out undefined values from the payload
       const updateData = Object.fromEntries(
-        Object.entries({ name, city, state, zip, phone, country }).filter(
-          ([_, value]) => value !== undefined
-        )
+        Object.entries({ 
+          name, 
+          city, 
+          state, 
+          zip, 
+          phone: sanitizePhone(phone), // Sanitize phone number
+          country 
+        }).filter(([_, value]) => value !== undefined)
       );
 
       // Update the company record
