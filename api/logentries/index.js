@@ -3,15 +3,18 @@ import { extractAndValidateCompanies, createCompanyIfMissing } from './validateC
 
 console.log('ENV OPENAI_KEY:', process.env.OPENAI_KEY);
 
+// Helper function for API key validation
 function validateApiKey(req) {
   const apiKey = req.headers['authorization']?.trim();
   const validKey = process.env.OPENAI_KEY;
 
   if (!apiKey || apiKey !== `Bearer ${validKey}`) {
+    console.error(`Authorization failed: Received key "${apiKey}", Expected key "Bearer ${validKey}"`);
     throw new Error('Unauthorized: Invalid API Key');
   }
 }
 
+// Validate keywords
 function validateKeywords(keywords) {
   if (!keywords || !Array.isArray(keywords)) return [];
   const invalidKeywords = keywords.filter((kw) => kw.includes(" "));
@@ -33,7 +36,11 @@ export default async function handler(req, res) {
         .from('logentries')
         .select(`
           id, logtype, keywords, text, followup,
-          relationships ( contact_id, company_id, contacts ( firstname, lastname, email ), companies ( name, city, state, zip ) )
+          relationships (
+            contact_id, company_id,
+            contacts ( firstname, lastname, email ),
+            companies ( name, city, state, zip )
+          )
         `);
 
       if (id) query = query.eq('id', id);
