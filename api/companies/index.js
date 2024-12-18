@@ -1,6 +1,8 @@
 import { supabase } from '../../utils/supabase.js';
 
-// Helper to sanitize phone numbers to `XXX.XXX.XXXX` format
+// SECTION 1: Helper Functions
+
+// 1.1 Sanitize phone numbers to `XXX.XXX.XXXX` format
 function sanitizePhone(phone) {
   // Remove all non-digit characters
   const digits = phone?.replace(/\D/g, '');
@@ -14,24 +16,27 @@ function sanitizePhone(phone) {
   throw new Error('Invalid phone number format. Expected: XXX.XXX.XXXX');
 }
 
+// SECTION 2: API Handler
 export default async function handler(req, res) {
   try {
     const apiKey = req.headers['authorization'];
     const validKey = process.env.OPENAI_KEY;
 
+    // 2.1 Validate API key
     if (apiKey !== `Bearer ${validKey}`) {
       return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
     }
 
-    // POST: Create a company
+    // 2.2 Handle POST Requests
     if (req.method === 'POST') {
       const { name, city, state, zip, phone, country } = req.body;
 
+      // 2.2a Validate required fields
       if (!name) {
         return res.status(400).json({ error: 'Company name is required.' });
       }
 
-      // Sanitize and validate the phone number
+      // 2.2b Sanitize and validate the phone number
       let sanitizedPhone;
       try {
         sanitizedPhone = sanitizePhone(phone);
@@ -39,19 +44,19 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: error.message });
       }
 
-      // Clean up and filter input
+      // 2.2c Prepare data for insertion
       const insertData = Object.fromEntries(
-        Object.entries({ 
-          name, 
-          city, 
-          state, 
-          zip, 
+        Object.entries({
+          name,
+          city,
+          state,
+          zip,
           phone: sanitizedPhone, // Use the sanitized phone number
-          country 
+          country,
         }).filter(([_, value]) => value !== undefined)
       );
 
-      // Insert the company into the database
+      // 2.2d Insert company into the database
       const { data, error } = await supabase
         .from('companies')
         .insert([insertData])
@@ -63,11 +68,11 @@ export default async function handler(req, res) {
       return res.status(201).json({ message: 'Company created successfully.', data });
     }
 
-    // GET: Fetch companies and optionally include associated logs
+    // 2.3 Handle GET Requests
     else if (req.method === 'GET') {
       const { id, includeLogs } = req.query;
 
-      // Fetch logs associated with the company via the relationships table
+      // 2.3a Fetch logs associated with the company
       if (includeLogs && id) {
         const { data, error } = await supabase
           .from('relationships')
@@ -79,7 +84,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ message: 'Logs retrieved successfully.', data });
       }
 
-      // Retrieve all companies or a single company
+      // 2.3b Retrieve all companies or a single company
       const { data, error } = id
         ? await supabase.from('companies').select('*').eq('id', id).single()
         : await supabase.from('companies').select('*');
@@ -89,16 +94,17 @@ export default async function handler(req, res) {
       return res.status(200).json(data);
     }
 
-    // PATCH: Update a company
+    // 2.4 Handle PATCH Requests
     else if (req.method === 'PATCH') {
       const { id } = req.query;
       const { name, city, state, zip, phone, country } = req.body;
 
+      // 2.4a Validate required fields
       if (!id) {
         return res.status(400).json({ error: 'Company ID is required.' });
       }
 
-      // Sanitize and validate the phone number
+      // 2.4b Sanitize and validate the phone number
       let sanitizedPhone;
       try {
         sanitizedPhone = sanitizePhone(phone);
@@ -106,19 +112,19 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: error.message });
       }
 
-      // Filter out undefined values from the payload
+      // 2.4c Prepare data for update
       const updateData = Object.fromEntries(
-        Object.entries({ 
-          name, 
-          city, 
-          state, 
-          zip, 
+        Object.entries({
+          name,
+          city,
+          state,
+          zip,
           phone: sanitizedPhone, // Use the sanitized phone number
-          country 
+          country,
         }).filter(([_, value]) => value !== undefined)
       );
 
-      // Update the company record
+      // 2.4d Update the company record
       const { data, error } = await supabase
         .from('companies')
         .update(updateData)
@@ -131,18 +137,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: 'Company updated successfully.', data });
     }
 
-    // DELETE: Remove a company and cascade delete relationships
+    // 2.5 Handle DELETE Requests
     else if (req.method === 'DELETE') {
       const { id } = req.query;
 
+      // 2.5a Validate required fields
       if (!id) {
         return res.status(400).json({ error: 'Company ID is required.' });
       }
 
-      // Cascade delete any associated rows in the relationships table
+      // 2.5b Cascade delete from relationships and companies table
       await supabase.from('relationships').delete().eq('company_id', id);
-
-      // Delete the company
       const { error } = await supabase.from('companies').delete().eq('id', id);
 
       if (error) throw error;
@@ -150,7 +155,7 @@ export default async function handler(req, res) {
       return res.status(204).end();
     }
 
-    // Method Not Allowed
+    // 2.6 Handle Unsupported Methods
     else {
       res.setHeader('Allow', ['POST', 'PATCH', 'GET', 'DELETE']);
       return res.status(405).end(`Method ${req.method} Not Allowed`);
