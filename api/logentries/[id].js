@@ -24,7 +24,6 @@ export default async function handler(req, res) {
             // L-A-LOG-I-2: Handle GET Method (Retrieve Log Entries)
             case 'GET': {
                 if (id) {
-                    // Fetch a specific log entry by ID
                     const logEntry = await getLogEntry(id); // L-A-LOG-D-5
                     if (!logEntry) {
                         return res.status(404).json({ error: `Log entry with ID ${id} not found.` });
@@ -34,7 +33,6 @@ export default async function handler(req, res) {
                         data: logEntry,
                     });
                 } else {
-                    // Fetch all log entries
                     const logEntries = await getAllLogEntries(); // L-A-LOG-D-6
                     return res.status(200).json({
                         message: 'All log entries retrieved successfully.',
@@ -51,12 +49,10 @@ export default async function handler(req, res) {
                     return res.status(400).json({ error: 'The text field is required.' });
                 }
 
-                // Validate and clean up input data
-                await validateContactIds(contactids); // L-A-LOG-D-5
-                const excludedWords = await getExcludedWords(contactids, companyids); // L-A-LOG-D-6
-                const cleanKeywords = validateKeywords(keywords, excludedWords); // L-A-LOG-D-7
+                await validateContactIds(contactids); // Validate contact IDs
+                const excludedWords = await getExcludedWords(contactids, companyids); // Exclude specific words
+                const cleanKeywords = validateKeywords(keywords, excludedWords); // Clean keywords
 
-                // Insert the log entry and create relationships
                 const logentry_id = await insertLogEntry({ logtype, keywords: cleanKeywords, text, followup }); // L-A-LOG-D-1
                 await insertRelationships(logentry_id, contactids, companyids); // L-A-LOG-D-2
 
@@ -70,14 +66,12 @@ export default async function handler(req, res) {
             case 'PATCH': {
                 const { logtype, keywords, followup, text } = req.body;
 
-                // Validate input
                 if (!logtype && !keywords && !followup && !text) {
                     return res.status(400).json({
                         error: 'At least one field must be provided for update.',
                     });
                 }
 
-                // Update the log entry
                 const updatedLog = await updateLogEntry(id, { logtype, keywords, followup, text }); // L-A-LOG-D-4
                 return res.status(200).json({
                     message: `Log entry with ID ${id} updated successfully.`,
@@ -87,7 +81,6 @@ export default async function handler(req, res) {
 
             // L-A-LOG-I-5: Handle DELETE Method (Delete a Log Entry)
             case 'DELETE': {
-                // Delete relationships and the log entry
                 await deleteRelationships(id); // L-A-LOG-D-3
                 return res.status(200).json({
                     message: `Log entry with ID ${id} deleted successfully.`,
