@@ -1,6 +1,10 @@
 import { supabase } from '../../utils/supabase.js';
 import { inferCompanyFromEmail, sanitizePhone } from './inputhelper.js';
-import { ensureCompanyExists, saveContact, deleteContact } from './dbhelper.js';
+import {
+  ensureCompanyExists, // C-A-CON-D-1
+  saveContact, // C-A-CON-D-2
+  deleteContact, // C-A-CON-D-3
+} from './dbhelper.js';
 
 export default async function handler(req, res) {
     // C-A-CON-I-1: Validate API Key
@@ -30,7 +34,7 @@ export default async function handler(req, res) {
                 }
 
                 const resolvedCompanyId = await ensureCompanyExists(companyid, company); // C-A-CON-D-1
-                const sanitizedPhone = sanitizePhone(phone); // C-A-CON-D-2
+                const sanitizedPhone = sanitizePhone(phone);
 
                 const contactData = {
                     firstname: resolvedFirst,
@@ -40,7 +44,7 @@ export default async function handler(req, res) {
                     companyid: resolvedCompanyId,
                 };
 
-                const createdContact = await saveContact(contactData); // C-A-CON-D-3
+                const createdContact = await saveContact(contactData); // C-A-CON-D-2
                 return res.status(201).json({
                     message: 'Contact created successfully.',
                     data: createdContact,
@@ -58,7 +62,7 @@ export default async function handler(req, res) {
                 const sanitizedPhone = phone ? sanitizePhone(phone) : undefined;
                 const updateData = { firstname, lastname, email, phone: sanitizedPhone, companyid };
 
-                const updatedContact = await saveContact(updateData, id); // C-A-CON-D-3
+                const updatedContact = await saveContact(updateData, id); // C-A-CON-D-2
                 return res.status(200).json({
                     message: 'Contact updated successfully.',
                     data: updatedContact,
@@ -71,7 +75,7 @@ export default async function handler(req, res) {
                     return res.status(400).json({ error: 'Contact ID is required.' });
                 }
 
-                await deleteContact(id); // C-A-CON-D-4
+                await deleteContact(id); // C-A-CON-D-3
                 return res.status(204).end();
             }
 
