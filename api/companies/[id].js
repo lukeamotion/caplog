@@ -1,6 +1,11 @@
 import { supabase } from '../../utils/supabase.js';
 import { sanitizePhone } from './inputhelper.js';
-import { saveCompany, deleteCompany, getCompanyLogs, getCompanies } from './dbhelper.js';
+import {
+  saveCompany, // C-A-C-D-1
+  deleteCompany, // C-A-C-D-2
+  getCompanyLogs, // C-A-C-D-3
+  getCompanies, // C-A-C-D-4
+} from './dbhelper.js';
 
 export default async function handler(req, res) {
     // C-A-C-I-1: Validate API Key
@@ -19,18 +24,14 @@ export default async function handler(req, res) {
             case 'POST': {
                 const { name, city, state, zip, phone, country } = req.body;
 
-                // Validation: Ensure `name` is provided.
                 if (!name) {
                     return res.status(400).json({ error: 'Company name is required.' });
                 }
 
-                // Sanitize phone number before saving.
                 const sanitizedPhone = sanitizePhone(phone);
                 const companyData = { name, city, state, zip, phone: sanitizedPhone, country };
 
-                // Save the company using the database helper.
-                const createdCompany = await saveCompany(companyData);
-
+                const createdCompany = await saveCompany(companyData); // C-A-C-D-1
                 return res.status(201).json({
                     message: 'Company created successfully.',
                     data: createdCompany,
@@ -40,16 +41,14 @@ export default async function handler(req, res) {
             // C-A-C-I-3: Handle GET Method (Retrieve Company or Logs)
             case 'GET': {
                 if (includeLogs && id) {
-                    // Retrieve logs for a specific company.
-                    const logs = await getCompanyLogs(id);
+                    const logs = await getCompanyLogs(id); // C-A-C-D-3
                     return res.status(200).json({
                         message: 'Logs retrieved successfully.',
                         data: logs,
                     });
                 }
 
-                // Retrieve companies (all or a specific one based on `id`).
-                const companies = await getCompanies(id);
+                const companies = await getCompanies(id); // C-A-C-D-4
                 return res.status(200).json(companies);
             }
 
@@ -61,13 +60,10 @@ export default async function handler(req, res) {
 
                 const { name, city, state, zip, phone, country } = req.body;
 
-                // Sanitize phone number before updating.
                 const sanitizedPhone = sanitizePhone(phone);
                 const companyData = { name, city, state, zip, phone: sanitizedPhone, country };
 
-                // Update the company using the database helper.
-                const updatedCompany = await saveCompany(companyData, id);
-
+                const updatedCompany = await saveCompany(companyData, id); // C-A-C-D-1
                 return res.status(200).json({
                     message: 'Company updated successfully.',
                     data: updatedCompany,
@@ -80,9 +76,7 @@ export default async function handler(req, res) {
                     return res.status(400).json({ error: 'Company ID is required.' });
                 }
 
-                // Delete the company using the database helper.
-                await deleteCompany(id);
-
+                await deleteCompany(id); // C-A-C-D-2
                 return res.status(204).end();
             }
 
