@@ -1,10 +1,10 @@
-// FILE: dbhelper.js
+// FILE: caplog/api/companies/dbhelper.js
 // DESCRIPTION: Contains database interaction functions for `companies` and related logs.
 
 import { supabase } from '../supabase.js';
 
 /**
- * Function D1: Create or Update Company
+ * Function C-A-C-D-1: Create or Update Company
  * Inserts or updates a company in the database.
  * 
  * @param {object} companyData - The company data to insert or update.
@@ -23,7 +23,7 @@ export async function saveCompany(companyData, id = null) {
 }
 
 /**
- * Function D2: Delete Company
+ * Function C-A-C-D-2: Delete Company
  * Deletes a company and its relationships from the database.
  * 
  * @param {number} id - The company ID to delete.
@@ -36,7 +36,7 @@ export async function deleteCompany(id) {
 }
 
 /**
- * Function D3: Get Company Logs
+ * Function C-A-C-D-3: Get Company Logs
  * Retrieves logs associated with a specific company.
  * 
  * @param {number} id - The company ID to fetch logs for.
@@ -54,7 +54,7 @@ export async function getCompanyLogs(id) {
 }
 
 /**
- * Function D4: Get Companies
+ * Function C-A-C-D-4: Get Companies
  * Fetches all companies or a specific company by ID.
  * 
  * @param {number|null} id - The company ID to fetch (null for all companies).
