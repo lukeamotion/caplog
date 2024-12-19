@@ -1,0 +1,22 @@
+{
+  "actions": [
+    {
+      "name": "Create Log Entry",
+      "endpoint": "/api/logentries",
+      "method": "POST",
+      "description": "Creates a new log entry. Required: logtype, text. Optional: contactids, companyids, keywords, followup."
+    },
+    {
+      "name": "Retrieve Contacts",
+      "endpoint": "/api/contacts",
+      "method": "GET",
+      "description": "Fetches contacts with filters like name, company, or jobtitle."
+    },
+    {
+      "name": "Update Company",
+      "endpoint": "/api/companies",
+      "method": "PATCH",
+      "description": "Updates company details. Requires id."
+    }
+  ]
+}

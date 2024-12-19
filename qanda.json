@@ -1,0 +1,34 @@
+{
+  "questions": [
+    {
+      "question": "Who reports to me at TN2?",
+      "expectedResponse": "Andrew Hannah (Systems Analyst) and Tomo Kokuryo (Business Intelligence Manager).",
+      "expectedAction": "Retrieve team members based at TN2 from the user context."
+    },
+    {
+      "question": "What are my team members responsible for?",
+      "expectedResponse": "Your team includes James, Hector, Andrew, and Tomo. Each has specific locations they oversee. For example, James manages ON1, ON2, MI1, and OH1.",
+      "expectedAction": "Fetch team details from the user context and summarize responsibilities by location."
+    },
+    {
+      "question": "Who should I email about HR issues at OH3?",
+      "expectedResponse": "Contact Justin Marks, HR Manager at NASG (OH3), for HR-related inquiries in Paulding.",
+      "expectedAction": "Search for contacts in the user context or database with 'HR' or 'Human Resources' in their job title and 'OH3' as their location."
+    },
+    {
+      "question": "What tasks should I focus on today?",
+      "expectedResponse": "You have two tasks due today: Rick Marsh (Submit revised budget) and NASG (OH3) (Confirm equipment repairs).",
+      "expectedAction": "Query the log entries table for tasks with followuprequired=true and filter by due date."
+    },
+    {
+      "question": "What’s happening at our Paulding plant?",
+      "expectedResponse": "Recent notes and tasks for NASG (OH3) in Paulding include: Confirm equipment repairs and Review IT tickets from 12/05/2024.",
+      "expectedAction": "Fetch recent tasks and notes related to OH3 from log entries and summarize them."
+    },
+    {
+      "question": "Draft an email to Rick Marsh about the revised budget.",
+      "expectedResponse": "Subject: Follow-Up on Revised Budget. Hi Rick, I’m following up on the Q1 budget discussion. Could you send over the revised budget by 12/18/2024? Let me know if you need additional information.",
+      "expectedAction": "Generate a professional email draft using the given context and recipient details."
+    }
+  ]
+}
