@@ -1,10 +1,10 @@
-// FILE: dbhelper.js
+// FILE: caplog/api/contacts/dbhelper.js
 // DESCRIPTION: Contains database interaction functions for `contacts` and their associated companies.
 
 import { supabase } from '../supabase.js';
 
 /**
- * Function D1: Ensure Company Exists
+ * Function C-A-CON-D-1: Ensure Company Exists
  * Ensures a company exists in the database, creating it if necessary.
  * 
  * @param {number|null} companyid - The ID of the existing company (optional).
@@ -41,7 +41,7 @@ export async function ensureCompanyExists(companyid, companyName) {
 }
 
 /**
- * Function D2: Create or Update Contact
+ * Function C-A-CON-D-2: Create or Update Contact
  * Inserts or updates a contact in the database.
  * 
  * @param {object} contactData - The contact data to insert or update.
@@ -60,7 +60,7 @@ export async function saveContact(contactData, id = null) {
 }
 
 /**
- * Function D3: Delete Contact
+ * Function C-A-CON-D-3: Delete Contact
  * Deletes a contact and its relationships from the database.
  * 
  * @param {number} id - The contact ID to delete.
