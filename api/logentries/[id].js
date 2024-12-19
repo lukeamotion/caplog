@@ -1,11 +1,11 @@
 import { validateKeywords, getExcludedWords, validateContactIds } from './inputhelper.js';
 import {
-  insertLogEntry, // L-A-LOG-D-1
-  insertRelationships, // L-A-LOG-D-2
-  deleteRelationships, // L-A-LOG-D-3
-  updateLogEntry, // L-A-LOG-D-4
-  getLogEntry, // L-A-LOG-D-5
-  getAllLogEntries, // L-A-LOG-D-6
+    insertLogEntry, // L-A-LOG-D-1
+    insertRelationships, // L-A-LOG-D-2
+    deleteRelationships, // L-A-LOG-D-3
+    updateLogEntry, // L-A-LOG-D-4
+    getLogEntry, // L-A-LOG-D-5
+    getAllLogEntries, // L-A-LOG-D-6
 } from './dbhelper.js';
 
 export default async function handler(req, res) {
@@ -24,6 +24,7 @@ export default async function handler(req, res) {
             // L-A-LOG-I-2: Handle GET Method (Retrieve Log Entries)
             case 'GET': {
                 if (id) {
+                    // Fetch a specific log entry by ID
                     const logEntry = await getLogEntry(id); // L-A-LOG-D-5
                     if (!logEntry) {
                         return res.status(404).json({ error: `Log entry with ID ${id} not found.` });
@@ -33,6 +34,7 @@ export default async function handler(req, res) {
                         data: logEntry,
                     });
                 } else {
+                    // Fetch all log entries when no ID is provided
                     const logEntries = await getAllLogEntries(); // L-A-LOG-D-6
                     return res.status(200).json({
                         message: 'All log entries retrieved successfully.',
