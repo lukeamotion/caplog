@@ -1,55 +1,89 @@
 import { supabase } from '../../utils/supabase.js';
+import { inferCompanyFromEmail, sanitizePhone } from './inputhelper.js';
+import { ensureCompanyExists, saveContact, deleteContact } from './dbhelper.js';
 
 export default async function handler(req, res) {
-  const { id } = req.query;
-
-  if (!id) {
-    return res.status(400).json({ error: 'Contact ID is required.' });
-  }
-
-  try {
-    // API Key Validation
+    // C-A-CON-I-1: Validate API Key
     const apiKey = req.headers['authorization'];
     const validKey = process.env.OPENAI_KEY;
 
     if (apiKey !== `Bearer ${validKey}`) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
+        return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
     }
 
-    if (req.method === 'PATCH') {
-      // Update a specific contact
-      const { firstname, lastname, email, phone } = req.body;
+    try {
+        const { id } = req.query;
 
-      if (!firstname && !lastname && !email && !phone) {
-        return res.status(400).json({ error: 'At least one field must be provided for update.' });
-      }
+        switch (req.method) {
+            // C-A-CON-I-2: Handle POST Method (Create a New Contact)
+            case 'POST': {
+                const { name, firstname, lastname, email, phone, companyid, company } = req.body;
 
-      const { data, error } = await supabase
-        .from('contacts')
-        .update({ firstname, lastname, email, phone })
-        .eq('id', id);
+                const [first, ...lastParts] = name?.split(' ') || [];
+                const resolvedFirst = firstname || first;
+                const resolvedLast = lastname || lastParts.join(' ');
 
-      if (error) throw error;
+                if (!resolvedFirst || !resolvedLast || !email) {
+                    return res.status(400).json({
+                        error: 'firstname, lastname, and email are required.',
+                    });
+                }
 
-      return res.status(200).json({ message: 'Contact updated successfully.', data });
+                const resolvedCompanyId = await ensureCompanyExists(companyid, company); // C-A-CON-D-1
+                const sanitizedPhone = sanitizePhone(phone); // C-A-CON-D-2
 
-    } else if (req.method === 'DELETE') {
-      // Delete a specific contact
-      const { data, error } = await supabase
-        .from('contacts')
-        .delete()
-        .eq('id', id);
+                const contactData = {
+                    firstname: resolvedFirst,
+                    lastname: resolvedLast,
+                    email,
+                    phone: sanitizedPhone,
+                    companyid: resolvedCompanyId,
+                };
 
-      if (error) throw error;
+                const createdContact = await saveContact(contactData); // C-A-CON-D-3
+                return res.status(201).json({
+                    message: 'Contact created successfully.',
+                    data: createdContact,
+                });
+            }
 
-      return res.status(200).json({ message: `Contact with ID ${id} deleted.` });
+            // C-A-CON-I-3: Handle PATCH Method (Update an Existing Contact)
+            case 'PATCH': {
+                const { firstname, lastname, email, phone, companyid } = req.body;
 
-    } else {
-      res.setHeader('Allow', ['PATCH', 'DELETE']);
-      return res.status(405).end(`Method ${req.method} Not Allowed`);
+                if (!id) {
+                    return res.status(400).json({ error: 'Contact ID is required.' });
+                }
+
+                const sanitizedPhone = phone ? sanitizePhone(phone) : undefined;
+                const updateData = { firstname, lastname, email, phone: sanitizedPhone, companyid };
+
+                const updatedContact = await saveContact(updateData, id); // C-A-CON-D-3
+                return res.status(200).json({
+                    message: 'Contact updated successfully.',
+                    data: updatedContact,
+                });
+            }
+
+            // C-A-CON-I-4: Handle DELETE Method (Delete a Contact)
+            case 'DELETE': {
+                if (!id) {
+                    return res.status(400).json({ error: 'Contact ID is required.' });
+                }
+
+                await deleteContact(id); // C-A-CON-D-4
+                return res.status(204).end();
+            }
+
+            // C-A-CON-I-5: Handle Unsupported HTTP Methods
+            default: {
+                res.setHeader('Allow', ['POST', 'PATCH', 'DELETE']);
+                return res.status(405).end(`Method ${req.method} Not Allowed`);
+            }
+        }
+    } catch (error) {
+        // C-A-CON-I-6: Handle Errors and Send a 500 Response
+        console.error('Error in contacts handler:', error.message || error);
+        return res.status(500).json({ error: 'Internal Server Error' });
     }
-  } catch (error) {
-    console.error('Error in contacts/[id] handler:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
-  }
 }
