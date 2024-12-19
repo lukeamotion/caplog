@@ -35,3 +35,39 @@ export function sanitizePhone(phone) {
   }
   throw new Error('Invalid phone number format. Expected: XXX.XXX.XXXX');
 }
+
+/**
+ * Function I3: Validate Job Title
+ * Ensures that job titles are strings and not too long.
+ * 
+ * @param {string} jobtitle - The job title to validate.
+ * @returns {string} - The sanitized job title.
+ * @throws {Error} - If validation fails.
+ */
+export function validateJobTitle(jobtitle) {
+  if (!jobtitle || typeof jobtitle !== 'string') {
+    throw new Error('Invalid job title: Must be a non-empty string.');
+  }
+  if (jobtitle.length > 100) {
+    throw new Error('Invalid job title: Maximum length is 100 characters.');
+  }
+  return jobtitle.trim();
+}
+
+/**
+ * Function I4: Validate Notes
+ * Ensures that notes are strings and within the allowed length.
+ * 
+ * @param {string} notes - The notes to validate.
+ * @returns {string|null} - The sanitized notes or null if not provided.
+ * @throws {Error} - If validation fails.
+ */
+export function validateNotes(notes) {
+  if (notes && typeof notes !== 'string') {
+    throw new Error('Invalid notes: Must be a string.');
+  }
+  if (notes && notes.length > 500) {
+    throw new Error('Invalid notes: Maximum length is 500 characters.');
+  }
+  return notes ? notes.trim() : null;
+}
