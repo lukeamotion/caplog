@@ -1,6 +1,6 @@
-import { handleErrors } from '../../vercel/errorHandler'; // Error handling middleware
-import authenticate from '../../vercel/auth'; // Authentication middleware
-import supabase from '../../utils/supabaseClient'; // Supabase client
+import { handleErrors } from '../../utils/vercel/errorHandler'; // Error handling middleware
+import authenticate from '../../utils/vercel/auth'; // Authentication middleware
+import supabase from '../../utils/supabase'; // Supabase client
 
 export default handleErrors(async function handler(req, res) {
   authenticate(req, res, async () => {
