@@ -1,99 +1,84 @@
-import { validateKeywords, getExcludedWords, validateContactIds } from './inputhelper.js';
-import {
-    insertLogEntry,
-    insertRelationships,
-    deleteRelationships,
-    updateLogEntry,
-    getLogEntry,
-    getAllLogEntries,
-} from './dbhelper.js';
+import { handleErrors } from '../../vercel/errorHandler'; // Error handling middleware
+import authenticate from '../../vercel/auth'; // Authentication middleware
+import supabase from '../../utils/supabaseClient'; // Supabase client
 
-export default async function handler(req, res) {
-    const { id } = req.query;
+export default handleErrors(async function handler(req, res) {
+  authenticate(req, res, async () => {
+    const { method } = req;
+    const { id } = req.query; // Dynamic ID from route
 
-    // L-A-LOG-I-1: API Key Validation
-    const apiKey = req.headers['authorization'];
-    const validKey = process.env.OPENAI_KEY;
-
-    if (apiKey !== `Bearer ${validKey}`) {
-        return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
+    // Section 1: Method Handling
+    switch (method) {
+      case 'GET':
+        // Section 1.1: Handle GET Request (Retrieve Log Entry)
+        return await handleGetById(req, res, id);
+      case 'PATCH':
+        // Section 1.2: Handle PATCH Request (Update Log Entry)
+        return await handlePatchById(req, res, id);
+      case 'DELETE':
+        // Section 1.3: Handle DELETE Request (Remove Log Entry)
+        return await handleDeleteById(req, res, id);
+      default:
+        // Section 1.4: Unsupported Method
+        res.setHeader('Allow', ['GET', 'PATCH', 'DELETE']);
+        return res.status(405).json({ error: `Method ${method} not allowed.` });
     }
+  });
+});
 
-    try {
-        // Handle requests without an ID explicitly
-        if (req.method === 'GET' && !id) {
-            const logEntries = await getAllLogEntries(); // L-A-LOG-D-6
-            return res.status(200).json({
-                message: 'All log entries retrieved successfully.',
-                data: logEntries,
-            });
-        }
+// Section 2: GET Request Logic
+async function handleGetById(req, res, id) {
+  // Section 2.1: Fetch Log Entry
+  const { data: logEntry, error } = await supabase
+    .from('logentries')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-        switch (req.method) {
-            case 'GET': {
-                if (id) {
-                    // Fetch a specific log entry by ID
-                    const logEntry = await getLogEntry(id); // L-A-LOG-D-5
-                    if (!logEntry) {
-                        return res.status(404).json({ error: `Log entry with ID ${id} not found.` });
-                    }
-                    return res.status(200).json({
-                        message: `Log entry with ID ${id} retrieved successfully.`,
-                        data: logEntry,
-                    });
-                }
-            }
+  if (error) {
+    return res.status(404).json({
+      error: `Log entry with ID ${id} not found.`,
+    });
+  }
 
-            case 'POST': {
-                const { logtype, keywords, followup = false, text, contactids = [], companyids = [] } = req.body;
+  // Section 2.2: Return Response
+  return res.status(200).json({
+    status: 'success',
+    data: logEntry,
+  });
+}
 
-                if (!text) {
-                    return res.status(400).json({ error: 'The text field is required.' });
-                }
+// Section 3: PATCH Request Logic
+async function handlePatchById(req, res, id) {
+  const updates = req.body;
 
-                await validateContactIds(contactids);
-                const excludedWords = await getExcludedWords(contactids, companyids);
-                const cleanKeywords = validateKeywords(keywords, excludedWords);
+  // Section 3.1: Update Log Entry
+  const { data: updatedLogEntry, error } = await supabase
+    .from('logentries')
+    .update(updates)
+    .eq('id', id)
+    .select();
 
-                const logentry_id = await insertLogEntry({ logtype, keywords: cleanKeywords, text, followup });
-                await insertRelationships(logentry_id, contactids, companyids);
+  if (error) {
+    throw new Error(`Error updating log entry: ${error.message}`);
+  }
 
-                return res.status(201).json({
-                    message: 'Log entry created successfully.',
-                    logentry_id,
-                });
-            }
+  // Section 3.2: Return Response
+  return res.status(200).json({
+    status: 'success',
+    data: updatedLogEntry,
+  });
+}
 
-            case 'PATCH': {
-                const { logtype, keywords, followup, text } = req.body;
+// Section 4: DELETE Request Logic
+async function handleDeleteById(req, res, id) {
+  // Section 4.1: Delete Log Entry
+  const { error } = await supabase.from('logentries').delete().eq('id', id);
 
-                if (!logtype && !keywords && !followup && !text) {
-                    return res.status(400).json({
-                        error: 'At least one field must be provided for update.',
-                    });
-                }
+  if (error) {
+    throw new Error(`Error deleting log entry: ${error.message}`);
+  }
 
-                const updatedLog = await updateLogEntry(id, { logtype, keywords, followup, text });
-                return res.status(200).json({
-                    message: `Log entry with ID ${id} updated successfully.`,
-                    data: updatedLog,
-                });
-            }
-
-            case 'DELETE': {
-                await deleteRelationships(id);
-                return res.status(200).json({
-                    message: `Log entry with ID ${id} deleted successfully.`,
-                });
-            }
-
-            default: {
-                res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
-                return res.status(405).end(`Method ${req.method} Not Allowed`);
-            }
-        }
-    } catch (error) {
-        console.error('Error in logentries handler:', error.message || error);
-        return res.status(500).json({ error: 'Internal Server Error' });
-    }
+  // Section 4.2: Return Response
+  return res.status(204).end();
 }
