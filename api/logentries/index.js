@@ -1,7 +1,9 @@
+// Import necessary modules and middleware
 import { handleErrors } from '../../utils/vercel/errorhandler'; // Ensure this matches the case of the actual file
 import authenticate from '../../utils/vercel/auth'; // Authentication middleware
 import supabase from '../../utils/supabase'; // Supabase client
 
+// Main handler function wrapped with error handling
 export default handleErrors(async function handler(req, res) {
   authenticate(req, res, async () => {
     const { method } = req;
