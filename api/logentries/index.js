@@ -1,4 +1,4 @@
-import { handleErrors } from '../../utils/vercel/errorhandler'; // Error handling middleware
+import { handleErrors } from '../../utils/vercel/errorhandler'; // Ensure this matches the case of the actual file
 import authenticate from '../../utils/vercel/auth'; // Authentication middleware
 import supabase from '../../utils/supabase'; // Supabase client
 
